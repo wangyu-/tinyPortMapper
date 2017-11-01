@@ -10,18 +10,7 @@ typedef long long i64_t;
 typedef unsigned int u32_t;
 typedef int i32_t;
 
-typedef u64_t anti_replay_seq_t;
-int disable_replay_filter=0;
-int dup_num=1;
-int dup_delay_min=20;   //0.1ms
-int dup_delay_max=20;
-//int dup_first_delay=9000;   //0.1ms
 
-int jitter_min=0;
-int jitter_max=0;
-
-int iv_min=2;
-int iv_max=16;//< 256;
 int random_number_fd=-1;
 
 int remote_fd=-1;
@@ -35,22 +24,8 @@ u32_t remote_address_uint32=0;
 
 char local_address[100], remote_address[100];
 int local_port = -1, remote_port = -1;
-int multi_process_mode=0;
-const u32_t anti_replay_buff_size=10000;
 
-char key_string[1000]= "secret key";
-
-int random_drop=0;
-
-u64_t last_report_time=0;
-int report_interval=0;
-
-u64_t packet_send_count=0;
-u64_t dup_packet_send_count=0;
-u64_t packet_recv_count=0;
-u64_t dup_packet_recv_count=0;
 int max_pending_packet=0;
-
 
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
@@ -423,10 +398,6 @@ int event_loop()
 			else if(events[n].data.fd == clear_timer_fd)
 			{
 				clear_triggered=1;
-				if(report_interval!=0 &&get_current_time()-last_report_time>u64_t(report_interval)*1000)
-				{
-					last_report_time=get_current_time();
-				}
 			}
 
 			else
@@ -593,18 +564,7 @@ void process_arg(int argc, char *argv[])
 		//opt_key+=opt;
 		switch (opt)
 		{
-		case 'p':
-			multi_process_mode=1;
-			break;
-		case 'k':
-			sscanf(optarg,"%s\n",key_string);
-			mylog(log_debug,"key=%s\n",key_string);
-			if(strlen(key_string)==0)
-			{
-				mylog(log_fatal,"key len=0??\n");
-				myexit(-1);
-			}
-			break;
+
 
 		case 'm':
 			sscanf(optarg,"%d\n",&max_pending_packet);
@@ -615,61 +575,6 @@ void process_arg(int argc, char *argv[])
 			}
 			break;
 
-		case 'j':
-			if (strchr(optarg, ':') == 0)
-			{
-				int jitter;
-				sscanf(optarg,"%d\n",&jitter);
-				if(jitter<0 ||jitter>1000*100)
-				{
-					mylog(log_fatal,"jitter must be between 0 and 100,000(10 second)\n");
-					myexit(-1);
-				}
-				jitter_min=0;
-				jitter_max=jitter;
-			}
-			else
-			{
-				sscanf(optarg,"%d:%d\n",&jitter_min,&jitter_max);
-				if(jitter_min<0 ||jitter_max<0||jitter_min>jitter_max)
-				{
-					mylog(log_fatal," must satisfy  0<=jmin<=jmax\n");
-					myexit(-1);
-				}
-			}
-			break;
-		case 't':
-			if (strchr(optarg, ':') == 0)
-			{
-				int dup_delay=-1;
-				sscanf(optarg,"%d\n",&dup_delay);
-				if(dup_delay<0||dup_delay>1000*100)
-				{
-					mylog(log_fatal,"dup_delay must be between 0 and 100,000(10 second)\n");
-					myexit(-1);
-				}
-				dup_delay_min=dup_delay_max=dup_delay;
-			}
-			else
-			{
-				sscanf(optarg,"%d:%d\n",&dup_delay_min,&dup_delay_max);
-				if(dup_delay_min<0 ||dup_delay_max<0||dup_delay_min>dup_delay_max)
-				{
-					mylog(log_fatal," must satisfy  0<=tmin<=tmax\n");
-					myexit(-1);
-				}
-			}
-			break;
-		case 'd':
-			dup_num=-1;
-			sscanf(optarg,"%d\n",&dup_num);
-			if(dup_num<0 ||dup_num>5)
-			{
-				mylog(log_fatal,"dup_num must be between 0 and 5\n");
-				myexit(-1);
-			}
-			dup_num+=1;
-			break;
 		case 'c':
 			is_client = 1;
 			break;
@@ -713,11 +618,6 @@ void process_arg(int argc, char *argv[])
 			if(strcmp(long_options[option_index].name,"log-level")==0)
 			{
 			}
-			else if(strcmp(long_options[option_index].name,"disable-filter")==0)
-			{
-				disable_replay_filter=1;
-				//enable_log_color=0;
-			}
 			else if(strcmp(long_options[option_index].name,"disable-color")==0)
 			{
 				//enable_log_color=0;
@@ -725,25 +625,6 @@ void process_arg(int argc, char *argv[])
 			else if(strcmp(long_options[option_index].name,"log-position")==0)
 			{
 				enable_log_position=1;
-			}
-			else if(strcmp(long_options[option_index].name,"random-drop")==0)
-			{
-				sscanf(optarg,"%d",&random_drop);
-				if(random_drop<0||random_drop>10000)
-				{
-					mylog(log_fatal,"random_drop must be between 0 10000 \n");
-					myexit(-1);
-				}
-			}
-			else if(strcmp(long_options[option_index].name,"report")==0)
-			{
-				sscanf(optarg,"%d",&report_interval);
-
-				if(report_interval<=0)
-				{
-					mylog(log_fatal,"report_interval must be >0 \n");
-					myexit(-1);
-				}
 			}
 			else if(strcmp(long_options[option_index].name,"sock-buf")==0)
 			{
@@ -791,13 +672,7 @@ int main(int argc, char *argv[])
 
 	remote_address_uint32=inet_addr(remote_address);
 
-	if(!multi_process_mode)
-	{
-		event_loop();
-	}
-	else
-	{
-	}
+	event_loop();
 
 
 	return 0;
