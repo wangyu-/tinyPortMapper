@@ -282,7 +282,7 @@ int create_new_udp(int &new_udp_fd)
 		return -1;
 	}
 	setnonblocking(new_udp_fd);
-	set_buf_size(new_udp_fd);
+	set_buf_size(new_udp_fd,socket_buf_size);
 
 	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
 	int ret = connect(new_udp_fd, (struct sockaddr *) &remote_addr_in, slen);
@@ -933,7 +933,7 @@ int main(int argc, char *argv[])
 	dup2(1, 2);		//redirect stderr to stdout
 	int i, j, k;
 	process_arg(argc,argv);
-	init_random_number_fd();
+	//init_random_number_fd();
 
 	remote_address_uint32=inet_addr(remote_address);
 
