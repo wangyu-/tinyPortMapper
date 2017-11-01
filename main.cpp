@@ -224,18 +224,6 @@ struct conn_manager_t  //TODO change map to unordered map
 int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
 {
 
-	if(is_server)
-	{
-		dup_packet_send_count++;
-	}
-	if(is_server&&random_drop!=0)
-	{
-		if(get_true_random_number()%10000<(u32_t)random_drop)
-		{
-			return 0;
-		}
-	}
-
 	sockaddr_in tmp_sockaddr;
 
 	memset(&tmp_sockaddr,0,sizeof(tmp_sockaddr));
@@ -252,17 +240,6 @@ int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
 
 int send_fd (int fd,char * buf, int len,int flags)
 {
-	if(is_client)
-	{
-		dup_packet_send_count++;
-	}
-	if(is_client&&random_drop!=0)
-	{
-		if(get_true_random_number()%10000<(u32_t)random_drop)
-		{
-			return 0;
-		}
-	}
 	return send(fd,buf,len,flags);
 }
 
@@ -437,60 +414,10 @@ int event_loop()
 				conn_manager.update_active_time(new_udp_fd);
 				int ret;
 
-				/*
-				if(is_client)
-				{
-					add_seq(data,data_len);
-					if(jitter_max==0)
-					{
-						char new_data[buf_len];
-						int new_len=0;
-						do_obscure(data, data_len, new_data, new_len);
-						ret = send_fd(new_udp_fd, new_data,new_len, 0);
-						if (ret < 0) {
-							mylog(log_warn, "send returned %d ,errno:%s\n", ret,strerror(errno));
-						}
-						if(dup_delay_max!=0)
-						{
-							add_and_new(new_udp_fd, dup_num - 1,random_between(dup_delay_min,dup_delay_max), data, data_len,u64);
-						}
-						else
-						{
-							for(int i=0;i<dup_num - 1;i++)
-							{
-								do_obscure(data, data_len, new_data, new_len);
-								ret = send_fd(new_udp_fd, new_data,new_len, 0);
-							}
-						}
-					}
-					else
-					{
-						add_and_new(new_udp_fd, dup_num,random_between(jitter_min,jitter_max), data, data_len,u64);
-					}
-					packet_send_count++;
+				ret = send_fd(new_udp_fd, data,data_len, 0);
+				if (ret < 0) {
+					mylog(log_warn, "send returned %d,%s\n", ret,strerror(errno));
 				}
-				else
-				{
-					char new_data[buf_len];
-					int new_len;
-
-					if (de_obscure(data, data_len, new_data, new_len) != 0) {
-						mylog(log_trace,"de_obscure failed \n");
-						continue;
-					}
-					//dup_packet_recv_count++;
-					if (remove_seq(new_data, new_len) != 0) {
-						mylog(log_trace,"remove_seq failed \n");
-						continue;
-					}
-					//packet_recv_count++;
-					ret = send_fd(new_udp_fd, new_data,new_len, 0);
-					if (ret < 0) {
-						mylog(log_warn, "send returned %d,%s\n", ret,strerror(errno));
-						//perror("what happened????");
-					}
-				}*/
-
 
 			}
 			else if(events[n].data.fd == clear_timer_fd)
@@ -499,12 +426,6 @@ int event_loop()
 				if(report_interval!=0 &&get_current_time()-last_report_time>u64_t(report_interval)*1000)
 				{
 					last_report_time=get_current_time();
-					if(is_client)
-						mylog(log_info,"client-->server: %llu,%llu(include dup); server-->client %llu,%lld(include dup)\n",packet_send_count,
-							dup_packet_send_count,packet_recv_count,dup_packet_recv_count);
-					else
-						mylog(log_info,"client-->server: %llu,%llu(include dup); server-->client %llu,%lld(include dup)\n",packet_recv_count,dup_packet_recv_count,packet_send_count,
-								dup_packet_send_count);
 				}
 			}
 
@@ -538,69 +459,12 @@ int event_loop()
 
 				u64_t u64=conn_manager.find_u64_by_fd(udp_fd);
 
-				/*
-				if(is_client)
-				{
-					char new_data[buf_len];
-					int new_len;
-					if (de_obscure(data, data_len, new_data, new_len) != 0) {
-						mylog(log_debug,"data_len=%d \n",data_len);
-						continue;
-					}
-
-					//dup_packet_recv_count++;
-					if (remove_seq(new_data, new_len) != 0) {
-						mylog(log_debug,"remove_seq error \n");
-						continue;
-					}
-					//packet_recv_count++;
-					ret = sendto_u64(local_listen_fd, new_data,
-							new_len , 0,u64);
-					if (ret < 0) {
-						mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
-						//perror("ret<0");
-					}
+				ret = sendto_u64(local_listen_fd, data,
+						data_len , 0,u64);
+				if (ret < 0) {
+					mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
+					//perror("ret<0");
 				}
-				else
-				{
-					add_seq(data,data_len);
-
-					if(jitter_max==0)
-					{
-						char new_data[buf_len];
-						int new_len=0;
-						do_obscure(data, data_len, new_data, new_len);
-						ret = sendto_u64(local_listen_fd, new_data,
-								new_len , 0,u64);
-						if(dup_delay_max!=0)
-						{
-							add_and_new(udp_fd, dup_num - 1,random_between(dup_delay_min,dup_delay_max), data, data_len,u64);
-						}
-						else
-						{
-							for(int i=0;i<dup_num-1;i++)
-							{
-								do_obscure(data, data_len, new_data, new_len);
-								ret = sendto_u64(local_listen_fd, new_data,new_len , 0,u64);
-							}
-						}
-						if (ret < 0) {
-							mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
-							//perror("ret<0");
-						}
-					}
-					else
-					{
-							add_and_new(udp_fd, dup_num,random_between(jitter_min,jitter_max), data, data_len,u64);
-					}
-					packet_send_count++;
-
-
-				}*/
-
-				//mylog(log_trace, "%s :%d\n", inet_ntoa(tmp_sockaddr.sin_addr),
-					//	ntohs(tmp_sockaddr.sin_port));
-				//mylog(log_trace, "%d byte sent\n", ret);
 
 			}
 		}
@@ -913,16 +777,6 @@ void process_arg(int argc, char *argv[])
 		mylog(log_fatal,"error: -o not found\n");
 	if (no_l || no_r)
 		myexit(-1);
-	if (is_client == 0 && is_server == 0)
-	{
-		mylog(log_fatal,"-s -c hasnt been set\n");
-		myexit(-1);
-	}
-	if (is_client == 1 && is_server == 1)
-	{
-		mylog(log_fatal,"-s -c cant be both set\n");
-		myexit(-1);
-	}
 }
 int main(int argc, char *argv[])
 {
