@@ -69,11 +69,11 @@ const int buf_len=max_data_len+200;
 
 
 const u32_t conn_timeout_udp=120000;//for test
-const u32_t conn_timeout_tcp=180000;//for test
+const u32_t conn_timeout_tcp=300000;//for test
 const int max_conn_num=20000;
 
-const int conn_clear_ratio=10;
-const int conn_clear_min=1;
+const int conn_clear_ratio=3;
+const int conn_clear_min=5;
 
 
 const u32_t conn_clear_interval=1000;

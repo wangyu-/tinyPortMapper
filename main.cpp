@@ -454,7 +454,7 @@ int event_loop()
 				char ip_port_s[30];
 				sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
 
-				if(int(conn_manager.fd_to_u64.size())>=max_conn_num)
+				if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
 				{
 					mylog(log_warn,"[tcp]new connection from [%s],but ignored,bc of max_conn_num reached\n",ip_port_s);
 					close(new_fd);
