@@ -121,7 +121,7 @@ struct conn_manager_t  //TODO change map to unordered map
 
 		int port= uint16_t((u64 << 32u) >> 32u);
 
-		mylog(log_info,"fd %d cleared,assocated adress %s,%d\n",fd,my_ntoa(ip),port);
+		mylog(log_info,"[udp] inactive connection [%s:%d] cleared\n",my_ntoa(ip),port);
 
 		fd_manager.fd_close(fd);
 
