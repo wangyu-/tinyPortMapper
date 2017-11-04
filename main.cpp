@@ -11,8 +11,6 @@ typedef long long i64_t;
 typedef unsigned int u32_t;
 typedef int i32_t;
 
-int local_listen_fd_tcp=-1;
-int local_listen_fd_udp=-1;
 
 int disable_conn_clear=0;
 
@@ -338,6 +336,9 @@ struct conn_manager_tcp_t
 }conn_manager_tcp;
 int event_loop()
 {
+	int local_listen_fd_tcp=-1;
+	int local_listen_fd_udp=-1;
+
 	struct sockaddr_in local_me,remote_dst;	int yes = 1;int ret;
 	local_listen_fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
 	if(local_listen_fd_tcp<0)
@@ -591,14 +592,13 @@ int event_loop()
 			}
 			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
 			{
-				u64_t value;
-				read(clear_timer_fd, &value, 8);
-
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
 					mylog(log_warn,"EPOLLERR or EPOLLHUP from clear_timer_fd events[idx].events=%x \n",events[idx].events);
-					continue;
+					//continue;
 				}
+				u64_t value;
+				read(clear_timer_fd, &value, 8);
 
 				mylog(log_trace, "timer!\n");
 				roller++;
@@ -677,21 +677,37 @@ int event_loop()
 						}
 						tcp_pair.last_active_time=get_current_time();
 
-						epoll_event ev;
-
-						assert((other_info.ev.events & EPOLLOUT)==0);
-						other_info.ev.events|=EPOLLOUT;
-						ev=other_info.ev;
-						ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
-						assert(ret==0);
-
-						my_info.ev.events&=~EPOLLIN;
-						ev=my_info.ev;
-						ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
-						assert(ret==0);
-
 						my_info.data_len=recv_len;
 						my_info.begin=my_info.data;
+
+						assert((other_info.ev.events & EPOLLOUT)==0);
+
+						int send_len=send(other_fd,my_info.begin,my_info.data_len,MSG_NOSIGNAL);
+
+						if(send_len<=0)
+						{
+							//NOP
+						}
+						else
+						{
+							my_info.data_len-=send_len;
+							my_info.begin+=send_len;
+						}
+
+						if(my_info.data_len!=0)
+						{
+							epoll_event ev;
+							other_info.ev.events|=EPOLLOUT;
+							ev=other_info.ev;
+							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
+							assert(ret==0);
+
+							my_info.ev.events&=~EPOLLIN;
+							ev=my_info.ev;
+							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
+							assert(ret==0);
+						}
+
 					}
 					else if( (events[idx].events & EPOLLOUT) !=0)
 					{
