@@ -149,7 +149,7 @@ struct tcp_info_t
 {
 	fd64_t fd64;
 	epoll_event ev;
-	char data[buf_len*100];
+	char data[buf_len*5];//use a larger buffer than udp
 	char * begin;
 	int data_len;
 	tcp_info_t()
@@ -164,13 +164,16 @@ struct tcp_pair_t
 	tcp_info_t local;
 	tcp_info_t remote;
 	u64_t last_active_time;
+	list<tcp_pair_t>::iterator it;
+	char ip_port_s[30];
+
 };
 
 
-union fd_info_t
+struct fd_info_t
 {
-	ip_port_t ip_port;
-	tcp_pair_t *tcp_pair_p;
+	int is_tcp=0;
+	tcp_pair_t *tcp_pair_p=0;
 };
 
 

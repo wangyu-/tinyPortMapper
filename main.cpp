@@ -11,23 +11,17 @@ typedef long long i64_t;
 typedef unsigned int u32_t;
 typedef int i32_t;
 
-
-int random_number_fd=-1;
-
-int remote_fd=-1;
-int local_fd=-1;
-int is_client = 0, is_server = 0;
-int local_listen_fd=-1;
+int local_listen_fd_tcp=-1;
+int local_listen_fd_udp=-1;
 
 int disable_conn_clear=0;
-//int mtu_warn=1350;
-u32_t remote_address_u32=0;
-u32_t local_address_u32=0;
 
 char local_address[100], remote_address[100];
+u32_t remote_address_u32=0,local_address_u32=0;
 int local_port = -1, remote_port = -1;
 
 int max_pending_packet=0;
+int enable_udp=0,enable_tcp=0;
 
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
@@ -271,11 +265,11 @@ int set_timer(int epollfd,int &timer_fd)
 int udp_event_loop()
 {
 	struct sockaddr_in local_me, local_other;
-	local_listen_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	local_listen_fd_udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	int yes = 1;
-	setsockopt(local_listen_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-	set_buf_size(local_listen_fd,4*1024*1024);
-	setnonblocking(local_listen_fd);
+	setsockopt(local_listen_fd_udp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	set_buf_size(local_listen_fd_udp,4*1024*1024);
+	setnonblocking(local_listen_fd_udp);
 
 	//char data[buf_len];
 	//char *data=data0;
@@ -284,7 +278,7 @@ int udp_event_loop()
 	local_me.sin_family = AF_INET;
 	local_me.sin_port = htons(local_port);
 	local_me.sin_addr.s_addr = local_address_u32;
-	if (bind(local_listen_fd, (struct sockaddr*) &local_me, slen) == -1)
+	if (bind(local_listen_fd_udp, (struct sockaddr*) &local_me, slen) == -1)
 	{
 		mylog(log_fatal,"socket bind error");
 		myexit(1);
@@ -299,8 +293,8 @@ int udp_event_loop()
 		myexit(-1);
 	}
 	ev.events = EPOLLIN;
-	ev.data.u64 = local_listen_fd;
-	int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd, &ev);
+	ev.data.u64 = local_listen_fd_udp;
+	int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_udp, &ev);
 
 	if(ret!=0)
 	{
@@ -324,14 +318,14 @@ int udp_event_loop()
 		int clear_triggered=0;
 		for (n = 0; n < nfds; ++n)
 		{
-			if (events[n].data.u64 == (u64_t)local_listen_fd) //data income from local end
+			if (events[n].data.u64 == (u64_t)local_listen_fd_udp) //data income from local end
 			{
 
 				char data[buf_len];
 				int data_len;
 
 				slen = sizeof(sockaddr_in);
-				if ((data_len = recvfrom(local_listen_fd, data, max_data_len, 0,
+				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len, 0,
 						(struct sockaddr *) &local_other, &slen)) == -1) //<--first packet from a new ip:port turple
 				{
 
@@ -419,8 +413,7 @@ int udp_event_loop()
 
 				u64_t u64=conn_manager.find_u64_by_fd(udp_fd);
 
-				ret = sendto_u64(local_listen_fd, data,
-						data_len , 0,u64);
+				ret = sendto_u64(local_listen_fd_udp, data,data_len , 0,u64);
 				if (ret < 0) {
 					mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
 					//perror("ret<0");
@@ -501,31 +494,29 @@ struct conn_manager_tcp_t
 int tcp_event_loop()
 {
 	struct sockaddr_in local_me,remote_dst;
-	local_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if(local_listen_fd<0)
+	local_listen_fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
+	if(local_listen_fd_tcp<0)
 	{
 		mylog(log_fatal,"create tcp listen socket failed\n");
 		myexit(1);
 	}
 	int yes = 1;
-	setsockopt(local_listen_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-	set_buf_size(local_listen_fd,socket_buf_size);
-	setnonblocking(local_listen_fd);
+	setsockopt(local_listen_fd_tcp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)); //avoid annoying bind problem
+	set_buf_size(local_listen_fd_tcp,socket_buf_size);
+	setnonblocking(local_listen_fd_tcp);
 
-	//char data[buf_len];
-	//char *data=data0;
 	socklen_t local_len = sizeof(sockaddr_in);
 	memset(&local_me, 0, sizeof(local_me));
 	local_me.sin_family = AF_INET;
 	local_me.sin_port = htons(local_port);
 	local_me.sin_addr.s_addr = local_address_u32;
-	if (bind(local_listen_fd, (struct sockaddr*) &local_me, local_len) !=0)
+	if (bind(local_listen_fd_tcp, (struct sockaddr*) &local_me, local_len) !=0)
 	{
 		mylog(log_fatal,"socket bind failed, %s",strerror(errno));
 		myexit(1);
 	}
 
-    if (listen (local_listen_fd, 256) !=0)
+    if (listen (local_listen_fd_tcp, 512) !=0) //512 is max pending tcp connection
     {
 		mylog(log_fatal,"socket listen failed error, %s",strerror(errno));
 		myexit(1);
@@ -540,8 +531,8 @@ int tcp_event_loop()
 		myexit(-1);
 	}
 	ev.events = EPOLLIN;
-	ev.data.u64 = local_listen_fd;
-	int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd, &ev);
+	ev.data.u64 = local_listen_fd_tcp;
+	int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_tcp, &ev);
 
 	if(ret!=0)
 	{
@@ -566,21 +557,19 @@ int tcp_event_loop()
 			myexit(-1);
 		}
 		int idx;
-		int clear_triggered=0;
 		for (idx = 0; idx < nfds; idx++)
 		{
-			//printf("!!\n");
-			if(events[idx].data.u64==(u64_t)local_listen_fd)
+			if(events[idx].data.u64==(u64_t)local_listen_fd_tcp)
 			{
 				socklen_t tmp_len = sizeof(sockaddr_in);
 				struct sockaddr_in addr_tmp;
 				memset(&addr_tmp,0,sizeof(addr_tmp));
-				int new_fd=accept(local_listen_fd, (struct sockaddr*) &addr_tmp,&tmp_len);
+				int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &addr_tmp,&tmp_len);
 				if(new_fd<0)
 				{
 					mylog(log_warn,"accept failed %d %s\n", new_fd,strerror(errno));
+					continue;
 				}
-
 				int new_remote_fd = socket(AF_INET, SOCK_STREAM, 0);
 				if(new_remote_fd<0)
 				{
@@ -593,11 +582,11 @@ int tcp_event_loop()
 				ret=connect(new_remote_fd,(struct sockaddr*) &remote_dst,remote_len);
 				if(ret!=0)
 				{
-					mylog(log_info,"connect returned %d,errno=%s\n",ret,strerror(errno));
+					mylog(log_debug,"connect returned %d,errno=%s\n",ret,strerror(errno));
 				}
 				else
 				{
-					mylog(log_info,"connect returned 0\n");
+					mylog(log_debug,"connect returned 0\n");
 				}
 
 				conn_manager_tcp.tcp_pair_list.emplace_back();
@@ -605,17 +594,24 @@ int tcp_event_loop()
 				it--;
 				tcp_pair_t &tcp_pair=*it;
 
+				sprintf(tcp_pair.ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
+
+				mylog(log_info,"new_connection from [%s]\n",tcp_pair.ip_port_s);
+
 				tcp_pair.local.fd64=fd_manager.create(new_fd);
 				fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
+				fd_manager.get_info(tcp_pair.local.fd64).is_tcp=1;
 				tcp_pair.local.ev.events=EPOLLIN;
 				tcp_pair.local.ev.data.u64=tcp_pair.local.fd64;
 
 				tcp_pair.remote.fd64=fd_manager.create(new_remote_fd);
 				fd_manager.get_info(tcp_pair.remote.fd64).tcp_pair_p= &tcp_pair;
+				fd_manager.get_info(tcp_pair.remote.fd64).is_tcp=1;
 				tcp_pair.remote.ev.events=EPOLLIN;
 				tcp_pair.remote.ev.data.u64=tcp_pair.remote.fd64;
 
 				tcp_pair.last_active_time=get_current_time();
+				tcp_pair.it=it;
 
 				epoll_event ev;
 
@@ -626,17 +622,13 @@ int tcp_event_loop()
 				ev=tcp_pair.remote.ev;
 				ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_remote_fd, &ev);
 				assert(ret==0);
-
-				mylog(log_info,"new connection from xxxx\n");
-
-
 			}
 			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
 			{
 				u64_t value;
 				read(clear_timer_fd, &value, 8);
 				mylog(log_trace, "timer!\n");
-				clear_triggered=1;
+				conn_manager_tcp.clear_inactive();
 			}
 			else if(events[idx].data.u64 > u32_t(-1))
 			{
@@ -647,126 +639,135 @@ int tcp_event_loop()
 					continue;
 				}
 				assert(fd_manager.exist_info(fd64));
-				tcp_pair_t &tcp_pair=*(fd_manager.get_info(fd64).tcp_pair_p);
-				tcp_info_t *my_info_p,*other_info_p;
-				if(fd64==tcp_pair.local.fd64)
+				fd_info_t & fd_info=fd_manager.get_info(fd64);
+				if(fd_info.is_tcp==1)
 				{
-					mylog(log_trace,"i m local fd\n");
-					my_info_p=&tcp_pair.local;
-					other_info_p=&tcp_pair.remote;
-				}
-				else if(fd64==tcp_pair.remote.fd64)
-				{
-					mylog(log_trace,"i m remote fd\n");
-					my_info_p=&tcp_pair.remote;
-					other_info_p=&tcp_pair.local;
-				}
-				else
-				{
-					assert(0==1);
-				}
-				tcp_info_t &my_info=*my_info_p;
-				tcp_info_t &other_info=*other_info_p;
-
-				int my_fd=fd_manager.to_fd(my_info.fd64);
-				int other_fd=fd_manager.to_fd(other_info.fd64);
-
-				if( (events[idx].events & EPOLLIN) !=0   ||  (events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0 )
-				{
-					mylog(log_trace,"events[idx].events & EPOLLIN !=0 ,idx =%d\n",idx);
-					if((my_info.ev.events&EPOLLIN) ==0)
+					tcp_pair_t &tcp_pair=*(fd_info.tcp_pair_p);
+					tcp_info_t *my_info_p,*other_info_p;
+					if(fd64==tcp_pair.local.fd64)
 					{
-						printf("continue1\n");
+						mylog(log_trace,"fd64==tcp_pair.local.fd64\n");
+						my_info_p=&tcp_pair.local;
+						other_info_p=&tcp_pair.remote;
+					}
+					else if(fd64==tcp_pair.remote.fd64)
+					{
+						mylog(log_trace,"fd64==tcp_pair.remote.fd64\n");
+						my_info_p=&tcp_pair.remote;
+						other_info_p=&tcp_pair.local;
+					}
+					else
+					{
+						assert(0==1);
+					}
+					tcp_info_t &my_info=*my_info_p;
+					tcp_info_t &other_info=*other_info_p;
+
+					int my_fd=fd_manager.to_fd(my_info.fd64);
+					int other_fd=fd_manager.to_fd(other_info.fd64);
+
+					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
+					{
+						mylog(log_debug,"EPOLLERR or EPOLLHUP happens, events[idx].events=%x \n",events[idx].events);
+						conn_manager_tcp.erase(tcp_pair.it);
 						continue;
 					}
-					assert(my_info.data_len==0);
-					int recv_len=recv(my_fd,my_info.data,max_data_len*100,0);
-					mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
-					if(recv_len<=0)
+					else if( (events[idx].events & EPOLLIN) !=0  )
 					{
-						mylog(log_info,"connection closed bc of %s\n",strerror(errno));
-						fd_manager.fd64_close(my_info.fd64);
-						fd_manager.fd64_close(other_info.fd64);
-						continue;
-					}
+						mylog(log_trace,"events[idx].events & EPOLLIN !=0 ,idx =%d\n",idx);
+						if((my_info.ev.events&EPOLLIN) ==0)
+						{
+							mylog(log_debug,"out of date event, my_info.ev.events&EPOLLIN) ==0 \n");
+							continue;
+						}
+						assert(my_info.data_len==0);
+						int recv_len=recv(my_fd,my_info.data,max_data_len*5,0);//use a larger buffer than udp
+						mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
+						if(recv_len<=0)
+						{
+							mylog(log_info,"recv_len=%d,connection closed bc of %s\n",recv_len,strerror(errno));
+							conn_manager_tcp.erase(tcp_pair.it);
+							continue;
+						}
+						tcp_pair.last_active_time=get_current_time();
 
-					epoll_event ev;
+						epoll_event ev;
 
-					assert((other_info.ev.events & EPOLLOUT)==0);
-					other_info.ev.events|=EPOLLOUT;
-					ev=other_info.ev;
-					ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
-					assert(ret==0);
+						assert((other_info.ev.events & EPOLLOUT)==0);
+						other_info.ev.events|=EPOLLOUT;
+						ev=other_info.ev;
+						ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
+						assert(ret==0);
 
-					my_info.ev.events&=~EPOLLIN;
-					ev=my_info.ev;
-					ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
-					assert(ret==0);
-
-					my_info.data_len=recv_len;
-					my_info.begin=my_info.data;
-				}
-				else if( (events[idx].events & EPOLLOUT) !=0)
-				{
-					mylog(log_trace,"events[idx].events & EPOLLOUT !=0 ,idx =%d\n",idx);
-					if( (my_info.ev.events&EPOLLOUT) ==0)
-					{
-						printf("continue1\n");
-						continue;
-					}
-
-					/*if(other_info.data_len==0)
-					{
-						continue;
-					}*/
-					assert(other_info.data_len!=0);
-					int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
-					if(send_len<=0)
-					{
-						mylog(log_info,"connection closed\n");
-						fd_manager.fd64_close(my_info.fd64);
-						fd_manager.fd64_close(other_info.fd64);
-						printf("continue2  %s\n",strerror(errno));
-						continue;
-					}
-
-					mylog(log_info,"fd=%d send len=%d\n",my_fd,send_len);
-					other_info.data_len-=send_len;
-					other_info.begin+=send_len;
-
-					if(other_info.data_len==0)
-					{
-						my_info.ev.events&=~EPOLLOUT;
+						my_info.ev.events&=~EPOLLIN;
 						ev=my_info.ev;
 						ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
 						assert(ret==0);
 
-						assert((other_info.ev.events & EPOLLIN)==0);
-						other_info.ev.events|=EPOLLIN;
-						ev=other_info.ev;
-						ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
-						assert(ret==0);
+						my_info.data_len=recv_len;
+						my_info.begin=my_info.data;
+					}
+					else if( (events[idx].events & EPOLLOUT) !=0)
+					{
+						mylog(log_trace,"events[idx].events & EPOLLOUT !=0 ,idx =%d\n",idx);
+
+						if( (my_info.ev.events&EPOLLOUT) ==0)
+						{
+							mylog(log_debug,"out of date event, my_info.ev.events&EPOLLOUT) ==0 \n");
+							continue;
+						}
+
+						assert(other_info.data_len!=0);
+						int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
+						if(send_len<=0)
+						{
+							mylog(log_info,"send_len=%d,connection closed bc of %s\n",send_len,strerror(errno));
+							conn_manager_tcp.erase(tcp_pair.it);
+							continue;
+						}
+						tcp_pair.last_active_time=get_current_time();
+
+						mylog(log_trace,"fd=%d send len=%d\n",my_fd,send_len);
+						other_info.data_len-=send_len;
+						other_info.begin+=send_len;
+
+						if(other_info.data_len==0)
+						{
+							my_info.ev.events&=~EPOLLOUT;
+							ev=my_info.ev;
+							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
+							assert(ret==0);
+
+							assert((other_info.ev.events & EPOLLIN)==0);
+							other_info.ev.events|=EPOLLIN;
+							ev=other_info.ev;
+							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
+							assert(ret==0);
+						}
+						else
+						{
+							//keep waitting for EPOLLOUT;
+						}
+					}
+					else
+					{
+						mylog(log_fatal,"got unexpected event,events[idx].events=%x\n",events[idx].events);
+						myexit(-1);
 					}
 				}
-				else
+				else  //its a udp connection
 				{
-					printf("nothing?  %x\n",events[idx].events);
-					assert(0==1);
+
 				}
-
-
 			}
 			else
 			{
-				assert(0==1);
+				mylog(log_fatal,"got unexpected fd\n");
+				myexit(-1);
 			}
-		}
-		if(clear_triggered)   // 删除操作在epoll event的最后进行，防止event cache中的fd失效。
-		{
 		}
 	}
 
-	printf("end!\n");
 	myexit(0);
 	return 0;
 }
@@ -893,13 +894,6 @@ void process_arg(int argc, char *argv[])
 				mylog(log_fatal,"max_pending_packet must be >1000\n");
 				myexit(-1);
 			}
-			break;
-
-		case 'c':
-			is_client = 1;
-			break;
-		case 's':
-			is_server = 1;
 			break;
 		case 'l':
 			no_l = 0;
