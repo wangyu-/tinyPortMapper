@@ -36,9 +36,6 @@ struct conn_manager_t  //TODO change map to unordered map
 
 	unordered_map<u32_t,u64_t>::iterator clear_it;
 
-	unordered_map<u32_t,u64_t>::iterator it;
-	unordered_map<u32_t,u64_t>::iterator old_it;
-
 	//void (*clear_function)(uint64_t u64) ;
 
 	long long last_clear_time;
@@ -67,7 +64,7 @@ struct conn_manager_t  //TODO change map to unordered map
 	{
 		if(disable_conn_clear) return ;
 
-		for(it=fd_to_u64.begin();it!=fd_to_u64.end();it++)
+		for(auto it=fd_to_u64.begin();it!=fd_to_u64.end();it++)
 		{
 			//int fd=int((it->second<<32u)>>32u);
 			close(  it->first);
@@ -112,9 +109,13 @@ struct conn_manager_t  //TODO change map to unordered map
 		}
 		return 0;
 	}
-	int erase_fd(u32_t fd)
+	int erase(unordered_map<u32_t,u64_t>::iterator it)
 	{
 		if(disable_conn_clear) return 0;
+		if(clear_it==it)
+			clear_it++;
+
+		int fd=it->first;
 		u64_t u64=fd_to_u64[fd];
 
 		u32_t ip= (u64 >> 32u);
@@ -130,6 +131,13 @@ struct conn_manager_t  //TODO change map to unordered map
 		fd_last_active_time.erase(fd);
 		return 0;
 	}
+	int erase_fd(int fd)
+	{
+		auto it=fd_last_active_time.find(fd);
+		assert(it!=fd_last_active_time.end());
+		erase(it);
+		return 0;
+	}
 	int clear_inactive()
 	{
 		if(get_current_time()-last_clear_time>conn_clear_interval)
@@ -143,8 +151,7 @@ struct conn_manager_t  //TODO change map to unordered map
 	{
 		if(disable_conn_clear) return 0;
 
-
-		//map<uint32_t,uint64_t>::iterator it;
+		unordered_map<u32_t,u64_t>::iterator it,old_it;
 		int cnt=0;
 		it=clear_it;
 		int size=fd_last_active_time.size();
@@ -166,8 +173,8 @@ struct conn_manager_t  //TODO change map to unordered map
 				//mylog(log_info,"inactive conv %u cleared \n",it->first);
 				old_it=it;
 				it++;
-				u32_t fd= old_it->first;
-				erase_fd(old_it->first);
+				//u32_t fd= old_it->first;
+				erase(old_it);
 
 			}
 			else
@@ -438,8 +445,8 @@ int event_loop()
 			{
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
-					mylog(log_warn,"[tcp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					continue;
+					mylog(log_error,"[tcp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
+					//continue;
 				}
 
 				socklen_t tmp_len = sizeof(sockaddr_in);
@@ -518,8 +525,8 @@ int event_loop()
 			{
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
-					mylog(log_warn,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					continue;
+					mylog(log_error,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
+					//continue;
 				}
 
 				char data[buf_len];
@@ -742,14 +749,17 @@ int event_loop()
 				}
 				else  //its a udp connection
 				{
+
+					int udp_fd=fd_manager.to_fd(fd64);
+					assert(conn_manager.exist_fd(udp_fd));
+					//if(!conn_manager.exist_fd(udp_fd)) continue;
+
 					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 					{
 						mylog(log_warn,"[udp]EPOLLERR or EPOLLHUP from udp_remote_fd events[idx].events=%x \n",events[idx].events);
-						continue;
+						//conn_manager.erase_fd(udp_fd);
+						//continue;
 					}
-
-					int udp_fd=fd_manager.to_fd(fd64);
-					if(!conn_manager.exist_fd(udp_fd)) continue;
 
 					char data[buf_len];
 					int data_len =recv(udp_fd,data,max_data_len,0);
