@@ -59,9 +59,9 @@ struct conn_manager_t  //TODO change map to unordered map
 	}
 	void rehash()
 	{
-		u64_to_fd.rehash(10007);
-		fd_to_u64.rehash(10007);
-		fd_last_active_time.rehash(10007);
+		u64_to_fd.rehash(100007);
+		fd_to_u64.rehash(100007);
+		fd_last_active_time.rehash(100007);
 	}
 	void clear()
 	{
@@ -264,7 +264,7 @@ int set_timer(int epollfd,int &timer_fd)
 }
 int udp_event_loop()
 {
-	struct sockaddr_in local_me, local_other;
+	struct sockaddr_in local_me;
 	local_listen_fd_udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	int yes = 1;
 	setsockopt(local_listen_fd_udp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
@@ -304,8 +304,6 @@ int udp_event_loop()
 	int clear_timer_fd=-1;
 	set_timer(epollfd,clear_timer_fd);
 
-
-
 	for (;;)
 	{
 		int nfds = epoll_wait(epollfd, events, max_events, 180 * 1000); //3mins
@@ -314,58 +312,60 @@ int udp_event_loop()
 			mylog(log_fatal,"epoll_wait return %d\n", nfds);
 			myexit(-1);
 		}
-		int n;
-		int clear_triggered=0;
-		for (n = 0; n < nfds; ++n)
+		int idx;
+		for (idx = 0; idx < nfds; ++idx)
 		{
-			if (events[n].data.u64 == (u64_t)local_listen_fd_udp) //data income from local end
+			if (events[idx].data.u64 == (u64_t)local_listen_fd_udp) //data income from local end
 			{
 
 				char data[buf_len];
 				int data_len;
+				socklen_t tmp_len = sizeof(sockaddr_in);
+				struct sockaddr_in addr_tmp;
+				memset(&addr_tmp,0,sizeof(addr_tmp));
 
-				slen = sizeof(sockaddr_in);
 				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len, 0,
-						(struct sockaddr *) &local_other, &slen)) == -1) //<--first packet from a new ip:port turple
+						(struct sockaddr *) &addr_tmp, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 				{
-
 					mylog(log_error,"recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
 					//myexit(1);
 					continue;
 				}
-				mylog(log_trace, "received data from listen fd,%s:%d, len=%d\n", my_ntoa(local_other.sin_addr.s_addr),ntohs(local_other.sin_port),data_len);
+
 
 				data[data_len] = 0; //for easier debug
-				u64_t u64=pack_u64(local_other.sin_addr.s_addr,ntohs(local_other.sin_port));
+
+				ip_port_t ip_port;
+				ip_port.ip=addr_tmp.sin_addr.s_addr;
+				ip_port.port=ntohs(addr_tmp.sin_port);
+				u64_t u64=ip_port.to_u64();
+				mylog(log_trace, "received data from udp_listen_fd from [%s], len=%d\n",ip_port.to_s(),data_len);
 
 				if(!conn_manager.exist_u64(u64))
 				{
 
 					if(int(conn_manager.fd_to_u64.size())>=max_conn_num)
 					{
-						mylog(log_info,"new connection from %s:%d ,but ignored,bc of max_conv_num reached\n",my_ntoa(local_other.sin_addr.s_addr),ntohs(local_other.sin_port));
+						mylog(log_info,"new connection from [%s],but ignored,bc of max_conv_num reached\n",ip_port.to_s());
 						continue;
 					}
 					int new_udp_fd;
 					if(create_new_udp(new_udp_fd,remote_address_u32,remote_port)!=0)
 					{
-						mylog(log_info,"new connection from %s:%d ,but create udp fd failed\n",my_ntoa(local_other.sin_addr.s_addr),ntohs(local_other.sin_port));
+						mylog(log_info,"new connection from [%s] ,but create udp fd failed\n",ip_port.to_s());
 						continue;
 					}
-					struct epoll_event ev;
+					fd64_t fd64=fd_manager.create(new_udp_fd);
+					fd_manager.get_info(fd64);//just create the info
 
+					struct epoll_event ev;
 					mylog(log_trace, "u64: %lld\n", u64);
 					ev.events = EPOLLIN;
-
-					ev.data.fd = new_udp_fd;
+					ev.data.u64 = fd64;
 
 					ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
-					if (ret != 0) {
-						mylog(log_info,"new connection from %s:%d ,but add to epoll failed\n",my_ntoa(local_other.sin_addr.s_addr),ntohs(local_other.sin_port));
-						close(new_udp_fd);
-						continue;
-					}
-					mylog(log_info,"new connection from %s:%d ,created new udp fd %d\n",my_ntoa(local_other.sin_addr.s_addr),ntohs(local_other.sin_port),new_udp_fd);
+					assert(ret==0);
+					mylog(log_info,"new connection from [%s] ,created new udp fd %d\n",ip_port.to_s(),new_udp_fd);
 					conn_manager.insert_fd(new_udp_fd,u64);
 				}
 				int new_udp_fd=conn_manager.find_fd_by_u64(u64);
@@ -378,52 +378,59 @@ int udp_event_loop()
 				}
 
 			}
-			else if(events[n].data.u64 == (u64_t)clear_timer_fd)
+			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
 			{
 				u64_t value;
 				read(clear_timer_fd, &value, 8);
 				mylog(log_trace, "timer!\n");
-
-				clear_triggered=1;
+				conn_manager.clear_inactive();
 			}
-
 			else
 			{
-				int udp_fd=(int)events[n].data.u64;
-				if(!conn_manager.exist_fd(udp_fd)) continue;
-
-				char data[buf_len];
-				int data_len =recv(udp_fd,data,max_data_len,0);
-				mylog(log_trace, "received data from udp fd %d, len=%d\n", udp_fd,data_len);
-				if(data_len<0)
+				fd64_t fd64=events[idx].data.u64;
+				if(!fd_manager.exist(fd64))
 				{
-					if(errno==ECONNREFUSED)
-					{
-						//conn_manager.clear_list.push_back(udp_fd);
-						mylog(log_debug, "recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
-					}
-
-					mylog(log_warn, "recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
+					mylog(log_trace,"fd64 no longer exist\n");
 					continue;
 				}
+				assert(fd_manager.exist_info(fd64));
+				fd_info_t & fd_info=fd_manager.get_info(fd64);
 
-				assert(conn_manager.exist_fd(udp_fd));
+				if(fd_info.is_tcp==0)
+				{
 
-				conn_manager.update_active_time(udp_fd);
+					int udp_fd=fd_manager.to_fd(fd64);
+					if(!conn_manager.exist_fd(udp_fd)) continue;
 
-				u64_t u64=conn_manager.find_u64_by_fd(udp_fd);
+					char data[buf_len];
+					int data_len =recv(udp_fd,data,max_data_len,0);
+					mylog(log_trace, "received data from udp fd %d, len=%d\n", udp_fd,data_len);
+					if(data_len<0)
+					{
+						if(errno==ECONNREFUSED)
+						{
+							//conn_manager.clear_list.push_back(udp_fd);
+							mylog(log_debug, "recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
+						}
 
-				ret = sendto_u64(local_listen_fd_udp, data,data_len , 0,u64);
-				if (ret < 0) {
-					mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
-					//perror("ret<0");
+						mylog(log_warn, "recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
+						continue;
+					}
+
+					assert(conn_manager.exist_fd(udp_fd));
+
+					conn_manager.update_active_time(udp_fd);
+
+					u64_t u64=conn_manager.find_u64_by_fd(udp_fd);
+
+					ret = sendto_u64(local_listen_fd_udp, data,data_len , 0,u64);
+					if (ret < 0) {
+						mylog(log_warn, "sento returned %d,%s\n", ret,strerror(errno));
+						//perror("ret<0");
+					}
 				}
 
 			}
-		}
-		if(clear_triggered)   // 删除操作在epoll event的最后进行，防止event cache中的fd失效。
-		{
-			conn_manager.clear_inactive();
 		}
 	}
 	myexit(0);
@@ -435,6 +442,10 @@ struct conn_manager_tcp_t
 	list<tcp_pair_t> tcp_pair_list;
 	long long last_clear_time;
 	list<tcp_pair_t>::iterator clear_it;
+	conn_manager_tcp_t()
+	{
+		clear_it=tcp_pair_list.begin();
+	}
 	int erase(list<tcp_pair_t>::iterator &it)
 	{
 		fd_manager.fd64_close( it->local.fd64);
@@ -456,8 +467,6 @@ struct conn_manager_tcp_t
 	{
 		if(disable_conn_clear) return 0;
 
-
-		//map<uint32_t,uint64_t>::iterator it;
 		int cnt=0;
 		list<tcp_pair_t>::iterator it=clear_it,old_it;
 		int size=tcp_pair_list.size();
@@ -488,6 +497,7 @@ struct conn_manager_tcp_t
 			}
 			cnt++;
 		}
+		clear_it=it;
 		return 0;
 	}
 }conn_manager_tcp;
@@ -668,7 +678,7 @@ int tcp_event_loop()
 
 					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 					{
-						mylog(log_debug,"EPOLLERR or EPOLLHUP happens, events[idx].events=%x \n",events[idx].events);
+						mylog(log_info,"connection closed, events[idx].events=%x \n",events[idx].events);
 						conn_manager_tcp.erase(tcp_pair.it);
 						continue;
 					}
@@ -992,7 +1002,7 @@ int main(int argc, char *argv[])
 
 	//udp_event_loop();
 
-	tcp_event_loop();
+	udp_event_loop();
 
 
 	return 0;

@@ -69,7 +69,7 @@ const int buf_len=max_data_len+200;
 
 
 const u32_t conn_timeout=40000;//for test
-const int max_conn_num=200;
+const int max_conn_num=20000;
 
 const int conn_clear_ratio=10;
 const int conn_clear_min=1;
