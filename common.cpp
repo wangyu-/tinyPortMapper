@@ -12,17 +12,6 @@
 
 int about_to_exit=0;
 
-raw_mode_t raw_mode=mode_faketcp;
-unordered_map<int, const char*> raw_mode_tostring = {{mode_faketcp, "faketcp"}, {mode_udp, "udp"}, {mode_icmp, "icmp"}};
-
-
-//static int random_number_fd=-1;
-char iptables_rule[200]="";
-//int is_client = 0, is_server = 0;
-
-program_mode_t client_or_server=unset_mode;//0 unset; 1client 2server
-
-working_mode_t working_mode=tunnel_mode;
 
 int socket_buf_size=1024*1024;
 
@@ -125,45 +114,6 @@ char * my_ntoa(u32_t ip)
 	a.s_addr=ip;
 	return inet_ntoa(a);
 }
-
-
-int add_iptables_rule(char * s)
-{
-	strcpy(iptables_rule,s);
-	char buf[300]="iptables -I ";
-	strcat(buf,s);
-	if(system(buf)==0)
-	{
-		mylog(log_warn,"auto added iptables rule by:  %s\n",buf);
-	}
-	else
-	{
-		mylog(log_fatal,"auto added iptables failed by: %s\n",buf);
-		myexit(-1);
-	}
-	return 0;
-}
-
-int clear_iptables_rule()
-{
-	if(iptables_rule[0]!=0)
-	{
-		char buf[300]="iptables -D ";
-		strcat(buf,iptables_rule);
-		if(system(buf)==0)
-		{
-			mylog(log_warn,"iptables rule cleared by: %s \n",buf);
-		}
-		else
-		{
-			mylog(log_error,"clear iptables failed by: %s\n",buf);
-		}
-
-	}
-	return 0;
-}
-
-
 
 u64_t get_true_random_number_64()
 {
@@ -444,34 +394,6 @@ int set_timer_ms(int epollfd,int &timer_fd,u32_t timer_interval)
 	}
 	return 0;
 }
-/*
-int create_new_udp(int &new_udp_fd,int remote_address_uint32,int remote_port)
-{
-	struct sockaddr_in remote_addr_in;
-
-	socklen_t slen = sizeof(sockaddr_in);
-	memset(&remote_addr_in, 0, sizeof(remote_addr_in));
-	remote_addr_in.sin_family = AF_INET;
-	remote_addr_in.sin_port = htons(remote_port);
-	remote_addr_in.sin_addr.s_addr = remote_address_uint32;
-
-	new_udp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (new_udp_fd < 0) {
-		mylog(log_warn, "create udp_fd error\n");
-		return -1;
-	}
-	setnonblocking(new_udp_fd);
-	set_buf_size(new_udp_fd);
-
-	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
-	int ret = connect(new_udp_fd, (struct sockaddr *) &remote_addr_in, slen);
-	if (ret != 0) {
-		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
-		close(new_udp_fd);
-		return -1;
-	}
-	return 0;
-}*/
 void ip_port_t::from_u64(u64_t u64)
 {
 	ip=get_u64_h(u64);
@@ -558,34 +480,80 @@ int new_listen_socket(int &fd,u32_t ip,int port)
 
 	return 0;
 }
-int new_connected_socket(int &fd,u32_t ip,int port)
-{
-	char ip_port[40];
-	sprintf(ip_port,"%s:%d",my_ntoa(ip),port);
 
-	struct sockaddr_in remote_addr_in = { 0 };
+int create_new_udp(int &new_udp_fd,u32_t ip,int port)
+{
+	struct sockaddr_in remote_addr_in;
 
 	socklen_t slen = sizeof(sockaddr_in);
-	//memset(&remote_addr_in, 0, sizeof(remote_addr_in));
+	memset(&remote_addr_in, 0, sizeof(remote_addr_in));
 	remote_addr_in.sin_family = AF_INET;
 	remote_addr_in.sin_port = htons(port);
 	remote_addr_in.sin_addr.s_addr = ip;
 
-	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (fd < 0) {
-		mylog(log_warn, "[%s]create udp_fd error\n", ip_port);
+	new_udp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (new_udp_fd < 0) {
+		mylog(log_warn, "create udp_fd error\n");
 		return -1;
 	}
-	setnonblocking(fd);
-	set_buf_size(fd, socket_buf_size);
+	setnonblocking(new_udp_fd);
+	set_buf_size(new_udp_fd,socket_buf_size);
 
-	mylog(log_debug, "[%s]created new udp_fd %d\n", ip_port, fd);
-	int ret = connect(fd, (struct sockaddr *) &remote_addr_in, slen);
+	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
+	int ret = connect(new_udp_fd, (struct sockaddr *) &remote_addr_in, slen);
 	if (ret != 0) {
-		mylog(log_warn, "[%s]fd connect fail\n",ip_port);
-		close(fd);
+		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
+		close(new_udp_fd);
 		return -1;
+	}
+
+
+	return 0;
+}
+
+int set_timer(int epollfd,int &timer_fd)
+{
+	int ret;
+	epoll_event ev;
+
+	itimerspec its;
+	memset(&its,0,sizeof(its));
+
+	if((timer_fd=timerfd_create(CLOCK_MONOTONIC,TFD_NONBLOCK)) < 0)
+	{
+		mylog(log_fatal,"timer_fd create error\n");
+		myexit(1);
+	}
+	its.it_interval.tv_sec=(timer_interval/1000);
+	its.it_interval.tv_nsec=(timer_interval%1000)*1000ll*1000ll;
+	its.it_value.tv_nsec=1; //imidiately
+	timerfd_settime(timer_fd,0,&its,0);
+
+
+	ev.events = EPOLLIN;
+	ev.data.u64 = timer_fd;
+
+	ret=epoll_ctl(epollfd, EPOLL_CTL_ADD, timer_fd, &ev);
+	if (ret < 0) {
+		mylog(log_fatal,"epoll_ctl return %d\n", ret);
+		myexit(-1);
 	}
 	return 0;
 }
 
+int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
+{
+
+	sockaddr_in tmp_sockaddr;
+
+	memset(&tmp_sockaddr,0,sizeof(tmp_sockaddr));
+	tmp_sockaddr.sin_family = AF_INET;
+	tmp_sockaddr.sin_addr.s_addr = (u64 >> 32u);
+
+	tmp_sockaddr.sin_port = htons(uint16_t((u64 << 32u) >> 32u));
+
+	return sendto(fd, buf,
+			len , 0,
+			(struct sockaddr *) &tmp_sockaddr,
+			sizeof(tmp_sockaddr));
+}

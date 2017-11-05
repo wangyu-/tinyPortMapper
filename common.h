@@ -67,34 +67,20 @@ typedef u64_t my_time_t;
 const int max_data_len=2200;
 const int buf_len=max_data_len+200;
 
-
-const u32_t conn_timeout_udp=120000;//for test
-const u32_t conn_timeout_tcp=300000;//for test
+const u32_t conn_timeout_udp=180000;
+const u32_t conn_timeout_tcp=360000;
 const int max_conn_num=20000;
 
 const int conn_clear_ratio=3;
 const int conn_clear_min=5;
 
-
 const u32_t conn_clear_interval=1000;
-
-const i32_t max_fail_time=0;//disable
-
-const u32_t heartbeat_interval=1000;
 
 const u32_t timer_interval=500;//this should be smaller than heartbeat_interval and retry interval;
 
-
 extern int about_to_exit;
 
-enum raw_mode_t{mode_faketcp=0,mode_udp,mode_icmp,mode_end};
-extern raw_mode_t raw_mode;
-enum program_mode_t {unset_mode=0,client_mode,server_mode};
-extern program_mode_t client_or_server;
-extern unordered_map<int, const char*> raw_mode_tostring ;
 
-enum working_mode_t {unset_working_mode=0,tunnel_mode,tun_dev_mode};
-extern working_mode_t working_mode;
 
 extern int socket_buf_size;
 
@@ -234,6 +220,10 @@ int create_new_udp(int &new_udp_fd,int remote_address_uint32,int remote_port);
 
 int new_listen_socket(int &fd,u32_t ip,int port);
 
-int new_connected_socket(int &fd,u32_t ip,int port);
+int create_new_udp(int &new_udp_fd,u32_t ip,int port);
+
+int set_timer(int epollfd,int &timer_fd);
+
+int sendto_u64(int fd,char * buf, int len,int flags, u64_t u64);
 
 #endif /* COMMON_H_ */

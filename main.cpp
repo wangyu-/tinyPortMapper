@@ -185,88 +185,6 @@ struct conn_manager_t  //TODO change map to unordered map
 	}
 }conn_manager;
 
-
-int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
-{
-
-	sockaddr_in tmp_sockaddr;
-
-	memset(&tmp_sockaddr,0,sizeof(tmp_sockaddr));
-	tmp_sockaddr.sin_family = AF_INET;
-	tmp_sockaddr.sin_addr.s_addr = (u64 >> 32u);
-
-	tmp_sockaddr.sin_port = htons(uint16_t((u64 << 32u) >> 32u));
-
-	return sendto(fd, buf,
-			len , 0,
-			(struct sockaddr *) &tmp_sockaddr,
-			sizeof(tmp_sockaddr));
-}
-
-int send_fd (int fd,char * buf, int len,int flags)
-{
-	return send(fd,buf,len,flags);
-}
-
-int create_new_udp(int &new_udp_fd,u32_t ip,int port)
-{
-	struct sockaddr_in remote_addr_in;
-
-	socklen_t slen = sizeof(sockaddr_in);
-	memset(&remote_addr_in, 0, sizeof(remote_addr_in));
-	remote_addr_in.sin_family = AF_INET;
-	remote_addr_in.sin_port = htons(port);
-	remote_addr_in.sin_addr.s_addr = ip;
-
-	new_udp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (new_udp_fd < 0) {
-		mylog(log_warn, "create udp_fd error\n");
-		return -1;
-	}
-	setnonblocking(new_udp_fd);
-	set_buf_size(new_udp_fd,socket_buf_size);
-
-	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
-	int ret = connect(new_udp_fd, (struct sockaddr *) &remote_addr_in, slen);
-	if (ret != 0) {
-		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
-		close(new_udp_fd);
-		return -1;
-	}
-
-
-	return 0;
-}
-int set_timer(int epollfd,int &timer_fd)
-{
-	int ret;
-	epoll_event ev;
-
-	itimerspec its;
-	memset(&its,0,sizeof(its));
-
-	if((timer_fd=timerfd_create(CLOCK_MONOTONIC,TFD_NONBLOCK)) < 0)
-	{
-		mylog(log_fatal,"timer_fd create error\n");
-		myexit(1);
-	}
-	its.it_interval.tv_sec=(timer_interval/1000);
-	its.it_interval.tv_nsec=(timer_interval%1000)*1000ll*1000ll;
-	its.it_value.tv_nsec=1; //imidiately
-	timerfd_settime(timer_fd,0,&its,0);
-
-
-	ev.events = EPOLLIN;
-	ev.data.u64 = timer_fd;
-
-	ret=epoll_ctl(epollfd, EPOLL_CTL_ADD, timer_fd, &ev);
-	if (ret < 0) {
-		mylog(log_fatal,"epoll_ctl return %d\n", ret);
-		myexit(-1);
-	}
-	return 0;
-}
-
 struct conn_manager_tcp_t
 {
 	list<tcp_pair_t> tcp_pair_list;
@@ -495,7 +413,7 @@ int event_loop()
 				tcp_pair_t &tcp_pair=*it;
 				strcpy(tcp_pair.ip_port_s,ip_port_s);
 
-				mylog(log_info,"[tcp]new_connection from [%s]\n",tcp_pair.ip_port_s);
+				mylog(log_info,"[tcp]new_connection from [%s],fd1=%d,fd2=%d\n",tcp_pair.ip_port_s,new_fd,new_remote_fd);
 
 				tcp_pair.local.fd64=fd_manager.create(new_fd);
 				fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
@@ -577,14 +495,14 @@ int event_loop()
 
 					ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
 					assert(ret==0);
-					mylog(log_info,"[udp]new connection from [%s] ,created new udp fd %d\n",ip_port.to_s(),new_udp_fd);
+					mylog(log_info,"[udp]new connection from [%s],udp fd=%d\n",ip_port.to_s(),new_udp_fd);
 					conn_manager.insert_fd(new_udp_fd,u64);
 				}
 				int new_udp_fd=conn_manager.find_fd_by_u64(u64);
 				conn_manager.update_active_time(new_udp_fd);
 				int ret;
 
-				ret = send_fd(new_udp_fd, data,data_len, 0);
+				ret = send(new_udp_fd, data,data_len, 0);
 				if (ret < 0) {
 					mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
 				}
@@ -821,21 +739,31 @@ void print_help()
 	char git_version_buf[100]={0};
 	strncpy(git_version_buf,gitversion,10);
 
+	printf("\n");
 	printf("tinyForwarder\n");
 	printf("git version:%s    ",git_version_buf);
 	printf("build date:%s %s\n",__DATE__,__TIME__);
 	printf("repository: https://github.com/wangyu-/tinyForwarder\n");
 	printf("\n");
-	printf("usage ./this_program -c -l local_listen_ip:local_port -r server_ip:server_port  [options]\n");
-	printf("    run as server : ./this_program -s -l server_listen_ip:server_port -r remote_ip:remote_port  [options]\n");
+	printf("usage:\n");
+	printf("    ./this_program  -l <listen_ip>:<listen_port> -r <remote_ip>:<remote_port>  [options]\n");
 	printf("\n");
 
-	printf("options:\n");
-	printf("    -t                                    enable tcp forward\n");
-	printf("    -u                                    enable udp forward\n");
+	printf("main options:\n");
+	printf("    -t                                    enable TCP forward\n");
+	printf("    -u                                    enable UDP forward\n");
+	//printf("NOTE: If neither of -t or -u is provided,this program enables both TCP and UDP forward\n");
+	printf("\n");
+
+	printf("other options:\n");
+	printf("    --sock-buf            <number>        buf size for socket, >=10 and <=10240, unit: kbyte, default: 1024\n");
+	printf("    --log-level           <number>        0: never    1: fatal   2: error   3: warn \n");
+	printf("                                          4: info (default)      5: debug   6: trace\n");
+	printf("    --log-position                        enable file name, function name, line number in log\n");
+	printf("    --disable-color                       disable log color\n");
 	printf("    -h,--help                             print this help message\n");
 	printf("\n");
-	printf("NOTE: If no option is provided,this program enables both tcp and udp forward\n");
+
 
 	//printf("common options,these options must be same on both side\n");
 }
@@ -848,10 +776,7 @@ void process_arg(int argc, char *argv[])
 		{"log-level", required_argument,    0, 1},
 		{"log-position", no_argument,    0, 1},
 		{"disable-color", no_argument,    0, 1},
-		{"disable-filter", no_argument,    0, 1},
 		{"sock-buf", required_argument,    0, 1},
-		{"random-drop", required_argument,    0, 1},
-		{"report", required_argument,    0, 1},
 		{NULL, 0, 0, 0}
       };
     int option_index = 0;
@@ -905,22 +830,13 @@ void process_arg(int argc, char *argv[])
 	}
 
 	int no_l = 1, no_r = 1;
-	while ((opt = getopt_long(argc, argv, "l:r:d:tuhcspk:j:m:",long_options,&option_index)) != -1)
+	while ((opt = getopt_long(argc, argv, "l:r:tuh:",long_options,&option_index)) != -1)
 	{
 		//string opt_key;
 		//opt_key+=opt;
 		switch (opt)
 		{
 
-
-		case 'm':
-			sscanf(optarg,"%d\n",&max_pending_packet);
-			if(max_pending_packet<1000)
-			{
-				mylog(log_fatal,"max_pending_packet must be >1000\n");
-				myexit(-1);
-			}
-			break;
 		case 'l':
 			no_l = 0;
 			if (strchr(optarg, ':') != 0)
@@ -1007,15 +923,14 @@ void process_arg(int argc, char *argv[])
 
 	if(enable_tcp==0&&enable_udp==0)
 	{
-		enable_tcp=1;
-		enable_udp=1;
+		//enable_tcp=1;
+		//enable_udp=1;
+		mylog(log_fatal,"you must specify -t or -u or both\n");
+		myexit(-1);
 	}
 }
 int main(int argc, char *argv[])
 {
-
-	//signal(SIGPIPE, SIG_IGN);
-
 	assert(sizeof(u64_t)==8);
 	assert(sizeof(i64_t)==8);
 	assert(sizeof(u32_t)==4);
@@ -1023,12 +938,9 @@ int main(int argc, char *argv[])
 	dup2(1, 2);		//redirect stderr to stdout
 	int i, j, k;
 	process_arg(argc,argv);
-	//init_random_number_fd();
 
 	remote_address_u32=inet_addr(remote_address);
 	local_address_u32=inet_addr(local_address);
-
-	//udp_event_loop();
 
 	event_loop();
 
