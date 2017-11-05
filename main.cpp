@@ -153,9 +153,10 @@ struct conn_manager_t  //TODO change map to unordered map
 		int cnt=0;
 		it=clear_it;
 		int size=fd_last_active_time.size();
-		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 1/10 each time,to avoid latency glitch
+		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 2% each time,to avoid latency glitch
 
 		u64_t current_time=get_current_time();
+		num_to_clean=min(num_to_clean,size);
 		for(;;)
 		{
 			if(cnt>=num_to_clean) break;
@@ -221,9 +222,10 @@ struct conn_manager_tcp_t
 		int cnt=0;
 		list<tcp_pair_t>::iterator it=clear_it,old_it;
 		int size=tcp_pair_list.size();
-		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 1/10 each time,to avoid latency glitch
+		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 2% each time,to avoid latency glitch
 
 		u64_t current_time=get_current_time();
+		num_to_clean=min(num_to_clean,size);
 		for(;;)
 		{
 			if(cnt>=num_to_clean) break;
