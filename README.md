@@ -1,4 +1,4 @@
-# tinyForwarder
+# tinyForwarder( or tinyPortMapper)
 A Lightweight High-Performance Port Forwarder, Supports both TCP and UDP 
 
 # Supported Platforms
@@ -11,18 +11,23 @@ Linux host (including desktop Linux,Android phone/tablet, OpenWRT router, or Ras
 Download binary release from https://github.com/wangyu-/tinyForwarder/releases
 
 ### Running
-Assume you want to forward local port 443 to 10.222.2.1:446 (map 10.222.2.1:446 to local 443)
+Assume you want to forward local port 1234 to 10.222.2.1:443 (map 10.222.2.1:443 to local 1234)
 ```
 # for both TCP and UDP
-./forwarder_amd64 -l0.0.0.0:443 -r10.222.2.1:446 -t -u
+./forwarder_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -t -u
 
 # for both TCP only
-./forwarder_amd64 -l0.0.0.0:443 -r10.222.2.1:446 -t
+./forwarder_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -t
 
 # for both UDP only
-./forwarder_amd64 -l0.0.0.0:443 -r10.222.2.1:446 -u
+./forwarder_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -u
 ```
 
+##### NOTE
+```
+#local port and remote port can be the same
+./forwarder_amd64 -l0.0.0.0:443 -r10.222.2.1:443 -u
+```
 # Options
 ```
 tinyForwarder
