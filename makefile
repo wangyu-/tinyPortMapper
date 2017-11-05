@@ -10,10 +10,10 @@ FLAGS= -std=c++11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-
 
 SOURCES=main.cpp log.cpp common.cpp fd_manager.cpp
 
-NAME=forwarder
+NAME=tinymapper
 TARGETS=amd64 arm mips24kc_be x86  mips24kc_le
 
-TAR=${NAME}_binaries.tar.gz `echo ${TARGETS}|sed -r 's/([^ ]+)/forwarder_\1/g'` version.txt
+TAR=${NAME}_binaries.tar.gz `echo ${TARGETS}|sed -r 's/([^ ]+)/tinymapper_\1/g'` version.txt
 
 all:git_version
 	rm -f ${NAME}
@@ -56,7 +56,7 @@ release: ${TARGETS}
 
 clean:	
 	rm -f ${TAR}
-	rm -f forwarder forwarder_cross
+	rm -f tinymapper tinymapper_cross
 	rm -f git_version.h
 
 git_version:

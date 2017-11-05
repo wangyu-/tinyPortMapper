@@ -740,18 +740,18 @@ void print_help()
 	strncpy(git_version_buf,gitversion,10);
 
 	printf("\n");
-	printf("tinyForwarder\n");
+	printf("tinyPortMapper\n");
 	printf("git version:%s    ",git_version_buf);
 	printf("build date:%s %s\n",__DATE__,__TIME__);
-	printf("repository: https://github.com/wangyu-/tinyForwarder\n");
+	printf("repository: https://github.com/wangyu-/tinyPortMapper\n");
 	printf("\n");
 	printf("usage:\n");
 	printf("    ./this_program  -l <listen_ip>:<listen_port> -r <remote_ip>:<remote_port>  [options]\n");
 	printf("\n");
 
 	printf("main options:\n");
-	printf("    -t                                    enable TCP forward\n");
-	printf("    -u                                    enable UDP forward\n");
+	printf("    -t                                    enable TCP forwarding/mapping\n");
+	printf("    -u                                    enable UDP forwarding/mapping\n");
 	//printf("NOTE: If neither of -t or -u is provided,this program enables both TCP and UDP forward\n");
 	printf("\n");
 
