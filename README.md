@@ -38,8 +38,8 @@ usage:
     ./this_program  -l <listen_ip>:<listen_port> -r <remote_ip>:<remote_port>  [options]
 
 main options:
-    -t                                    enable TCP mapping
-    -u                                    enable UDP mapping
+    -t                                    enable TCP forwarding/mapping
+    -u                                    enable UDP forwarding/mapping
 
 other options:
     --sock-buf            <number>        buf size for socket, >=10 and <=10240, unit: kbyte, default: 1024
