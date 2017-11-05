@@ -1,5 +1,5 @@
 # tinyPortMapper (or tinyPortForwarder)
-A Lightweight High-Performance Port Mapping utility, Supports both TCP and UDP 
+A Lightweight High-Performance Port Mapping/Forwarding utility, Supports both TCP and UDP 
 
 # Supported Platforms
 Linux host (including desktop Linux,Android phone/tablet, OpenWRT router, or Raspberry PI).Binaries of amd64 x86 mips_be mips_le arm are provided.
