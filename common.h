@@ -71,12 +71,12 @@ const u32_t conn_timeout_udp=180000;
 const u32_t conn_timeout_tcp=360000;
 const int max_conn_num=20000;
 
-const int conn_clear_ratio=2;
-const int conn_clear_min=5;
+const int conn_clear_ratio=30;
+const int conn_clear_min=1;
 
 const u32_t conn_clear_interval=1000;
 
-const u32_t timer_interval=500;//this should be smaller than heartbeat_interval and retry interval;
+const u32_t timer_interval=400;//this should be smaller than heartbeat_interval and retry interval;
 
 extern int about_to_exit;
 
