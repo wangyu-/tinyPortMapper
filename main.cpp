@@ -269,7 +269,7 @@ int event_loop()
 	}
 
 	setsockopt(local_listen_fd_tcp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)); //avoid annoying bind problem
-	set_buf_size(local_listen_fd_tcp,socket_buf_size);
+	set_buf_size(local_listen_fd_tcp,4*1024*1024);
 	setnonblocking(local_listen_fd_tcp);
 
 
