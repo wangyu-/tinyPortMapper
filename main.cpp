@@ -21,6 +21,8 @@ int local_port = -1, remote_port = -1;
 int max_pending_packet=0;
 int enable_udp=0,enable_tcp=0;
 
+const int listen_fd_buf_size=5*1024*1024;
+
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
 
@@ -269,7 +271,7 @@ int event_loop()
 	}
 
 	setsockopt(local_listen_fd_tcp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)); //avoid annoying bind problem
-	set_buf_size(local_listen_fd_tcp,4*1024*1024);
+	set_buf_size(local_listen_fd_tcp,listen_fd_buf_size);
 	setnonblocking(local_listen_fd_tcp);
 
 
@@ -280,7 +282,7 @@ int event_loop()
 		myexit(1);
 	}
 	setsockopt(local_listen_fd_udp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-	set_buf_size(local_listen_fd_udp,4*1024*1024);
+	set_buf_size(local_listen_fd_udp,listen_fd_buf_size);
 	setnonblocking(local_listen_fd_udp);
 
 
@@ -380,6 +382,10 @@ int event_loop()
 					mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,strerror(errno));
 					continue;
 				}
+
+				set_buf_size(new_fd,socket_buf_size);
+				setnonblocking(new_fd);
+
 				char ip_port_s[30];
 				sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
 

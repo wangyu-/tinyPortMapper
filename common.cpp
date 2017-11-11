@@ -528,6 +528,7 @@ int set_timer(int epollfd,int &timer_fd)
 	its.it_interval.tv_nsec=(timer_interval%1000)*1000ll*1000ll;
 	its.it_value.tv_nsec=1; //imidiately
 	timerfd_settime(timer_fd,0,&its,0);
+	setnonblocking(timer_fd);
 
 
 	ev.events = EPOLLIN;
