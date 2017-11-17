@@ -113,7 +113,8 @@ struct conn_manager_t  //TODO change map to unordered map
 	{
 		if(disable_conn_clear) return 0;
 		if(clear_it==it)
-			clear_it++;
+			clear_it++;//not necessary
+
 
 		int fd=it->first;
 		u64_t u64=fd_to_u64[fd];
