@@ -56,9 +56,9 @@ struct conn_manager_t  //TODO change map to unordered map
 	}
 	void rehash()
 	{
-		u64_to_fd.rehash(100007);
-		fd_to_u64.rehash(100007);
-		fd_last_active_time.rehash(100007);
+		u64_to_fd.rehash(30007);
+		fd_to_u64.rehash(30007);
+		fd_last_active_time.rehash(30007);
 	}
 	void clear()
 	{
@@ -112,21 +112,20 @@ struct conn_manager_t  //TODO change map to unordered map
 	int erase(unordered_map<u32_t,u64_t>::iterator it)
 	{
 		if(disable_conn_clear) return 0;
+
+		/*
 		if(clear_it==it)
 			clear_it++;//not necessary
-
-
+		*/
 		int fd=it->first;
 		u64_t u64=fd_to_u64[fd];
 
-		u32_t ip= (u64 >> 32u);
+		ip_port_t ip_port;
+		ip_port.from_u64(u64);
+		mylog(log_info,"[udp] inactive connection [%s] cleared\n",ip_port.to_s());
 
-		int port= uint16_t((u64 << 32u) >> 32u);
-
-		mylog(log_info,"[udp] inactive connection [%s:%d] cleared\n",my_ntoa(ip),port);
 
 		fd_manager.fd_close(fd);
-
 		fd_to_u64.erase(fd);
 		u64_to_fd.erase(u64);
 		fd_last_active_time.erase(fd);
@@ -212,8 +211,16 @@ struct conn_manager_tcp_t
 		{
 			clear_it++;
 		}*/
-		fd_manager.fd64_close( it->local.fd64);
-		fd_manager.fd64_close( it->remote.fd64);
+		if(!it->not_used)
+		{
+			fd_manager.fd64_close( it->local.fd64);
+			fd_manager.fd64_close( it->remote.fd64);
+			mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->ip_port_s);
+		}
+		else
+		{
+			mylog(log_info,"[tcp]closed connection [%s] cleared \n",it->ip_port_s);
+		}
 		tcp_pair_list.erase(it);
 		return 0;
 	}
@@ -249,7 +256,6 @@ struct conn_manager_tcp_t
 
 			if( it->not_used||current_time - it->last_active_time  >conn_timeout_tcp)
 			{
-				mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->ip_port_s);
 				old_it=it;
 				it++;
 				//u32_t fd= old_it->first;
