@@ -199,12 +199,19 @@ struct conn_manager_tcp_t
 	{
 		clear_it=tcp_pair_list.begin();
 	}
+	int delayed_erase(list<tcp_pair_t>::iterator &it)
+	{
+		fd_manager.fd64_close( it->local.fd64);
+		fd_manager.fd64_close( it->remote.fd64);
+		it->not_used=1;
+		return 0;
+	}
 	int erase(list<tcp_pair_t>::iterator &it)
 	{
-		if(clear_it==it)
+		/*if(clear_it==it)
 		{
 			clear_it++;
-		}
+		}*/
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		tcp_pair_list.erase(it);
@@ -240,7 +247,7 @@ struct conn_manager_tcp_t
 				it=tcp_pair_list.begin();
 			}
 
-			if( current_time - it->last_active_time  >conn_timeout_tcp)
+			if( it->not_used||current_time - it->last_active_time  >conn_timeout_tcp)
 			{
 				mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->ip_port_s);
 				old_it=it;
@@ -552,7 +559,7 @@ int event_loop()
 					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 					{
 						mylog(log_info,"[tcp]connection closed, events[idx].events=%x \n",events[idx].events);
-						conn_manager_tcp.erase(tcp_pair.it);
+						conn_manager_tcp.delayed_erase(tcp_pair.it);
 						continue;
 					}
 
@@ -594,13 +601,13 @@ int event_loop()
 						if(recv_len==0)
 						{
 							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of EOF\n",recv_len,tcp_pair.ip_port_s);
-							conn_manager_tcp.erase(tcp_pair.it);
+							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(recv_len<0)
 						{
 							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of %s\n",recv_len,tcp_pair.ip_port_s,strerror(errno));
-							conn_manager_tcp.erase(tcp_pair.it);
+							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						tcp_pair.last_active_time=get_current_time();
@@ -652,13 +659,13 @@ int event_loop()
 						if(send_len==0)
 						{
 							mylog(log_warn,"[tcp]send_len=%d,connection [%s] closed bc of send_len==0\n",send_len,tcp_pair.ip_port_s);
-							conn_manager_tcp.erase(tcp_pair.it);
+							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(send_len<0)
 						{
 							mylog(log_info,"[tcp]send_len=%d,connection [%s] closed bc of %s\n",send_len,tcp_pair.ip_port_s,strerror(errno));
-							conn_manager_tcp.erase(tcp_pair.it);
+							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						tcp_pair.last_active_time=get_current_time();

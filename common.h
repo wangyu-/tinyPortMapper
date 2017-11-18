@@ -153,7 +153,7 @@ struct tcp_pair_t
 	u64_t last_active_time;
 	list<tcp_pair_t>::iterator it;
 	char ip_port_s[30];
-
+	int not_used=0;
 };
 
 
