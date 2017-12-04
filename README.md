@@ -16,10 +16,10 @@ Assume you want to map/forward local port 1234 to 10.222.2.1:443
 # for both TCP and UDP
 ./tinymapper_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -t -u
 
-# for both TCP only
+# for TCP only
 ./tinymapper_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -t
 
-# for both UDP only
+# for UDP only
 ./tinymapper_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -u
 ```
 
