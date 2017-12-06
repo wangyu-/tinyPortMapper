@@ -80,6 +80,7 @@ Connecting to host 127.0.0.1, port 5202
 [ ID] Interval           Transfer     Bandwidth       Retr
 [  4]   0.00-10.00  sec  7.26 GBytes  6.24 Gbits/sec    0             sender
 [  4]   0.00-10.00  sec  7.26 GBytes  6.24 Gbits/sec                  receiver
+
 ```
 
 ```
@@ -106,8 +107,7 @@ Connecting to host 127.0.0.1, port 5202
 ### UDP
 
 ```
-
-root@debian9:~/Desktop/iperf/src# ./iperf3 -c 127.0.0.1 -u -b10000M -p 5202 --pacing-timer 1 --get-server-output
+root@debian9:~/Desktop/iperf/src# ./iperf3 -c 127.0.0.1 -u -b10G -p 5202 --pacing-timer 1 --get-server-output
 Connecting to host 127.0.0.1, port 5202
 [  5] local 127.0.0.1 port 38435 connected to 127.0.0.1 port 5202
 [ ID] Interval           Transfer     Bitrate         Total Datagrams
@@ -145,7 +145,9 @@ Accepted connection from 127.0.0.1, port 46680
 [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
 [  5]   0.00-10.04  sec  9.21 GBytes  7.88 Gbits/sec  0.027 ms  39874/190876 (21%)  receiver
 
+```
 
+```
 root@debian9:~/Desktop/iperf/src# ./iperf3 -c 127.0.0.1 -u -b500M -p 5202 -l1400 --pacing-timer 1 --get-server-output 
 Connecting to host 127.0.0.1, port 5202
 [  5] local 127.0.0.1 port 60822 connected to 127.0.0.1 port 5202
