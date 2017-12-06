@@ -56,9 +56,9 @@ struct conn_manager_t  //TODO change map to unordered map
 	}
 	void rehash()
 	{
-		u64_to_fd.rehash(30007);
-		fd_to_u64.rehash(30007);
-		fd_last_active_time.rehash(30007);
+		u64_to_fd.rehash(10007);
+		fd_to_u64.rehash(10007);
+		fd_last_active_time.rehash(10007);
 	}
 	void clear()
 	{

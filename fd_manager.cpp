@@ -53,7 +53,7 @@ fd_manager_t::fd_manager_t()
 {
 	counter=u32_t(-1);
 	counter+=100;
-	reserve(100007);
+	reserve(30007);
 }
 fd_info_t & fd_manager_t::get_info(fd64_t fd64)
 {
