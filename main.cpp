@@ -479,13 +479,13 @@ int event_loop()
 					//continue;
 				}
 
-				char data[buf_len];
+				char data[max_data_len_udp+200];
 				int data_len;
 				socklen_t tmp_len = sizeof(sockaddr_in);
 				struct sockaddr_in addr_tmp;
 				memset(&addr_tmp,0,sizeof(addr_tmp));
 
-				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len, 0,
+				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp, 0,
 						(struct sockaddr *) &addr_tmp, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 				{
 					mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
@@ -610,7 +610,7 @@ int event_loop()
 							continue;
 						}
 						assert(my_info.data_len==0);
-						int recv_len=recv(my_fd,my_info.data,max_data_len*5,0);//use a larger buffer than udp
+						int recv_len=recv(my_fd,my_info.data,max_data_len_tcp,0);//use a larger buffer than udp
 						mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
 						if(recv_len==0)
 						{
@@ -726,8 +726,8 @@ int event_loop()
 						//continue;
 					}
 
-					char data[buf_len];
-					int data_len =recv(udp_fd,data,max_data_len,0);
+					char data[max_data_len_udp+200];
+					int data_len =recv(udp_fd,data,max_data_len_udp,0);
 					mylog(log_trace, "[udp]received data from udp fd %d, len=%d\n", udp_fd,data_len);
 					if(data_len<0)
 					{

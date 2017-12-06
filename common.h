@@ -64,8 +64,11 @@ typedef short i16_t;
 
 typedef u64_t my_time_t;
 
-const int max_data_len=2200;
-const int buf_len=max_data_len+200;
+//const int max_data_len=2200;
+//const int buf_len=max_data_len+200;
+
+const int max_data_len_udp=65536;
+const int max_data_len_tcp=20480;
 
 const u32_t conn_timeout_udp=180000;
 const u32_t conn_timeout_tcp=360000;
@@ -136,7 +139,7 @@ struct tcp_info_t
 {
 	fd64_t fd64;
 	epoll_event ev;
-	char data[buf_len*5];//use a larger buffer than udp
+	char data[max_data_len_tcp+200];//use a larger buffer than udp
 	char * begin;
 	int data_len;
 	tcp_info_t()
