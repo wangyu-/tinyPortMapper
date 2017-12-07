@@ -68,7 +68,7 @@ typedef u64_t my_time_t;
 //const int buf_len=max_data_len+200;
 
 const int max_data_len_udp=65536;
-const int max_data_len_tcp=20480;
+const int max_data_len_tcp=4096;
 
 const u32_t conn_timeout_udp=180000;
 const u32_t conn_timeout_tcp=360000;
