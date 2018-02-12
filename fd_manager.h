@@ -5,8 +5,10 @@
  *      Author: root
  */
 
-#ifndef FD_MANAGER_H_
-#define FD_MANAGER_H_
+#pragma once
+
+//#ifndef FD_MANAGER_H_
+//#define FD_MANAGER_H_
 
 #include "common.h"
 //#include "packet.h"
@@ -42,4 +44,4 @@ private:
 
 extern fd_manager_t fd_manager;
 
-#endif /* FD_MANAGER_H_ */
+//#endif /* FD_MANAGER_H_ */

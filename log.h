@@ -1,6 +1,7 @@
 
-#ifndef _LOG_MYLOG_H_
-#define _LOG_MYLOG_H_
+#pragma once
+//#ifndef _LOG_MYLOG_H_
+//#define _LOG_MYLOG_H_
 
 #include<stdio.h>
 #include<string.h>
@@ -98,4 +99,4 @@ void log0(const char * file,const char * function,int line,int level,const char*
 void log_bare(int level,const char* str, ...);
 
 
-#endif
+//#endif

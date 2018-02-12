@@ -5,8 +5,10 @@
  *      Author: wangyu
  */
 
-#ifndef COMMON_H_
-#define COMMON_H_
+#pragma once
+
+//#ifndef COMMON_H_
+//#define COMMON_H_
 //#define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
@@ -50,6 +52,8 @@
 #include<unordered_set>
 #include<map>
 #include<list>
+#include <memory>
+#include <vector>
 using  namespace std;
 
 
@@ -68,7 +72,7 @@ typedef u64_t my_time_t;
 //const int buf_len=max_data_len+200;
 
 const int max_data_len_udp=65536;
-const int max_data_len_tcp=4096;
+const int max_data_len_tcp=4096*4;
 
 const u32_t conn_timeout_udp=180000;
 const u32_t conn_timeout_tcp=360000;
@@ -97,6 +101,22 @@ typedef u64_t padding_t;
 typedef u64_t anti_replay_seq_t;
 
 typedef u64_t fd64_t;
+
+struct not_copy_able_t
+{
+	not_copy_able_t()
+	{
+
+	}
+	not_copy_able_t(const not_copy_able_t &other)
+	{
+		assert(0==1);
+	}
+	not_copy_able_t & operator=(const not_copy_able_t &other)
+	{
+		assert(0==1);
+	}
+};
 
 //enum dest_type{none=0,type_fd64_ip_port,type_fd64,type_fd64_ip_port_conv,type_fd64_conv/*,type_fd*/};
 enum dest_type{none=0,type_fd64_ip_port,type_fd64,type_fd,type_write_fd,type_fd_ip_port/*,type_fd*/};
@@ -135,17 +155,32 @@ struct dest_t
 	int cook=0;
 };
 
-struct tcp_info_t
+struct tcp_info_t:not_copy_able_t
 {
 	fd64_t fd64;
 	epoll_event ev;
-	char data[max_data_len_tcp+200];//use a larger buffer than udp
+	char * data;
+	//char data[max_data_len_tcp+200];//use a larger buffer than udp
 	char * begin;
 	int data_len;
 	tcp_info_t()
 	{
+		data=(char*)malloc(max_data_len_tcp+200);
+
 		begin=data;
 		data_len=0;
+
+	}
+	~tcp_info_t()
+	{
+		if(data)
+			delete data;
+	}
+	void free_memory()
+	{
+		delete data;
+		data=0;
+		begin=0;
 	}
 };
 
@@ -229,4 +264,4 @@ int set_timer(int epollfd,int &timer_fd);
 
 int sendto_u64(int fd,char * buf, int len,int flags, u64_t u64);
 
-#endif /* COMMON_H_ */
+//#endif /* COMMON_H_ */

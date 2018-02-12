@@ -203,6 +203,8 @@ struct conn_manager_tcp_t
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		it->not_used=1;
+		it->local.free_memory();
+		it->remote.free_memory();
 		return 0;
 	}
 	int erase(list<tcp_pair_t>::iterator &it)
@@ -271,6 +273,7 @@ struct conn_manager_tcp_t
 		return 0;
 	}
 }conn_manager_tcp;
+
 int event_loop()
 {
 	int local_listen_fd_tcp=-1;
@@ -960,8 +963,103 @@ void process_arg(int argc, char *argv[])
 		myexit(-1);
 	}
 }
+int test()
+{
+	struct sockaddr_in local_me,remote_dst;	int yes = 1;int ret;
+
+	int fd1=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if(fd1<0)
+	{
+		mylog(log_fatal,"[udp]create listen socket failed\n");
+		myexit(1);
+	}
+	setsockopt(fd1, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+	socklen_t local_len = sizeof(sockaddr_in);
+	memset(&local_me, 0, sizeof(local_me));
+	local_me.sin_family = AF_INET;
+	local_me.sin_port = htons(4567);
+	local_me.sin_addr.s_addr = inet_addr("192.168.100.201");
+
+	if (bind(fd1, (struct sockaddr*) &local_me, local_len) == -1)
+	{
+		mylog(log_fatal,"[udp]socket bind error");
+		myexit(1);
+	}
+
+	memset(&remote_dst, 0, sizeof(remote_dst));
+
+	remote_dst.sin_family = AF_INET;
+	remote_dst.sin_port = htons(9966);
+	remote_dst.sin_addr.s_addr = inet_addr("45.76.100.53");
+	//int fd3=dup(fd1);
+	ret=fork();
+	sleep(5);
+	//if(ret==0)
+	{
+		ret = connect(fd1, (struct sockaddr *) &remote_dst, local_len);
+		if (ret != 0) {
+			mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
+			close(fd1);
+			//return -1;
+		}
+	}
+
+	/*
+	int fd2=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if(fd2<0)
+	{
+		mylog(log_fatal,"[udp]create listen socket failed\n");
+		myexit(1);
+	}
+	setsockopt(fd2, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	if (bind(fd2, (struct sockaddr*) &local_me, local_len) == -1)
+	{
+		mylog(log_fatal,"[udp]socket bind error");
+		mylog(log_warn, "%s\n",strerror(errno));
+		myexit(1);
+	}
+
+	memset(&remote_dst, 0, sizeof(remote_dst));
+
+	remote_dst.sin_family = AF_INET;
+	remote_dst.sin_port = htons(9966);
+	remote_dst.sin_addr.s_addr = inet_addr("45.76.100.53");
+
+	ret = connect(fd2, (struct sockaddr *) &remote_dst, local_len);
+	if (ret != 0) {
+		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
+		close(fd2);
+		//return -1;
+	}*/
+
+	sleep(10);
+
+	exit(0);
+	return 0;
+}
+struct adress_t
+{
+	enum type_t
+	{
+		ipv4,ipv6,socket_pair
+	} type;
+	union
+	{
+		sockaddr_in ipv4;
+		sockaddr_in6 ipv6;
+		int socket_pair;
+	} inner;
+};
+
+struct address_manager_t
+{
+};
 int main(int argc, char *argv[])
 {
+	adress_t adress;
+	adress.type=adress_t::type_t::ipv4;
+//	test();
 	assert(sizeof(u64_t)==8);
 	assert(sizeof(i64_t)==8);
 	assert(sizeof(u32_t)==4);
