@@ -71,6 +71,8 @@ typedef u64_t my_time_t;
 //const int max_data_len=2200;
 //const int buf_len=max_data_len+200;
 
+const int max_addr_len=100;
+
 const int max_data_len_udp=65536;
 const int max_data_len_tcp=4096*4;
 
@@ -190,8 +192,95 @@ struct tcp_pair_t
 	tcp_info_t remote;
 	u64_t last_active_time;
 	list<tcp_pair_t>::iterator it;
-	char ip_port_s[30];
+	char ip_port_s[100];
 	int not_used=0;
+};
+
+
+
+struct adress_t
+{
+	struct hash_function
+	{
+		u32_t djb2(unsigned char *str,int len) const
+    	{
+    		 u32_t hash = 5381;
+    	     int c;
+    	     int i=0;
+    	    while(c = *str++,i++!=len)
+    	    {
+    	         hash = ((hash << 5) + hash)^c; /* (hash * 33) ^ c */
+    	    }
+
+    	     hash=htonl(hash);
+    	     return hash;
+    	 }
+
+		u32_t sdbm(unsigned char *str,int len) const
+    	{
+    	     u32_t hash = 0;
+    	     int c;
+    	     int i=0;
+			while(c = *str++,i++!=len)
+			{
+				 hash = c + (hash << 6) + (hash << 16) - hash;
+			}
+    	     //hash=htonl(hash);
+    	     return hash;
+    	 }
+
+	    u32_t operator()(const adress_t &key) const
+		{
+	    	return sdbm((unsigned char*)&key.inner,sizeof(key.inner));
+		}
+	};
+
+	union  //sockaddr_storage is too huge, we dont use it.
+	{
+		sockaddr_in ipv4;
+		sockaddr_in6 ipv6;
+	} inner;
+
+	adress_t()
+	{
+		clear();
+	}
+	void clear()
+	{
+		memset(&inner,0,sizeof(inner));
+	}
+	int from_str(char * str);
+
+	int from_sockaddr(sockaddr &,socklen_t);
+
+	char* to_str();
+
+	inline u32_t get_type()
+	{
+		return ((sockaddr*)&inner)->sa_family;
+	}
+
+	inline u32_t get_len()
+	{
+		u32_t type=get_type();
+		switch(type)
+		{
+			case AF_INET:
+				return sizeof(sockaddr_in);
+			case AF_INET6:
+				return sizeof(sockaddr_in6);
+			default:
+				assert(0==1);
+		}
+		return -1;
+	}
+
+    bool operator == (const adress_t &b) const
+    {
+    	//return this->data==b.data;
+        return memcmp(&this->inner,&b.inner,sizeof(this->inner));
+    }
+
 };
 
 

@@ -560,3 +560,118 @@ int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
 			(struct sockaddr *) &tmp_sockaddr,
 			sizeof(tmp_sockaddr));
 }
+
+int adress_t::from_str(char *str)
+{
+	clear();
+
+	char ip_addr_str[100];u32_t port;
+	mylog(log_info,"parsing address: %s\n",str);
+	int is_ipv6=0;
+	if(sscanf(str, "[%[^]]]:%u", ip_addr_str,&port)==2)
+	{
+		mylog(log_info,"its an ipv6 adress\n");
+		inner.ipv6.sin6_family=AF_INET6;
+		is_ipv6=1;
+	}
+	else if(sscanf(str, "%[^:]:%u", ip_addr_str,&port)==2)
+	{
+		mylog(log_info,"its an ipv4 adress\n");
+		inner.ipv4.sin_family=AF_INET;
+	}
+	else
+	{
+		mylog(log_error,"failed to parse\n");
+		myexit(-1);
+	}
+
+	mylog(log_info,"ip_address is %s , port is %u\n",ip_addr_str,port);
+
+	if(port>65535)
+	{
+		mylog(log_error,"invalid port: %d\n",port);
+	}
+
+	int ret=-100;
+	if(is_ipv6)
+	{
+		ret=inet_pton(AF_INET6, ip_addr_str,&(inner.ipv6.sin6_addr));
+		inner.ipv6.sin6_port=htons(port);
+	}
+	else
+	{
+		ret=inet_pton(AF_INET, ip_addr_str,&(inner.ipv4.sin_addr));
+		inner.ipv4.sin_port=htons(port);
+	}
+
+	if(ret!=1)  // inet_pton returns 1 on success
+	{
+		mylog(log_error,"ip_addr %s parse failed , %d\n",ip_addr_str,ret);
+		myexit(-1);
+	}
+
+	return 0;
+}
+
+
+char* adress_t::to_str()
+{
+	static char res[max_addr_len];
+	char ip_addr[max_addr_len];
+	u32_t port;
+	const char * ret=0;
+	if(get_type()==AF_INET6)
+	{
+		ret=inet_ntop(AF_INET6, &inner.ipv6.sin6_addr, ip_addr,max_addr_len);
+		port=inner.ipv6.sin6_port;
+	}
+	else if(get_type()==AF_INET)
+	{
+		ret=inet_ntop(AF_INET, &inner.ipv4.sin_addr, ip_addr,max_addr_len);
+		port=inner.ipv4.sin_port;
+	}
+	else
+	{
+		assert(0==1);
+	}
+
+	if(ret==0)
+	{
+		mylog(log_error,"inet_ntop failed\n");
+		myexit(-1);
+	}
+
+	port=ntohs(port);
+
+	ip_addr[max_addr_len-1]=0;
+	if(get_type()==AF_INET6)
+	{
+		sprintf(res,"[%s]:%u\n",ip_addr,(u32_t)port);
+	}else
+	{
+		sprintf(res,"%s:%u\n",ip_addr,(u32_t)port);
+	}
+
+	return res;
+}
+
+int adress_t::from_sockaddr(sockaddr & addr,socklen_t slen)
+{
+
+	if(addr.sa_family==AF_INET6)
+	{
+		assert(slen>=sizeof(sockaddr_in6));
+		inner.ipv6= *( (sockaddr_in6*) &addr );
+
+	}
+	else if(addr.sa_family==AF_INET)
+	{
+		assert(slen>=sizeof(sockaddr_in));
+		inner.ipv4= *( (sockaddr_in*) &addr );
+	}
+	else
+	{
+		assert(0==1);
+	}
+	return 0;
+}

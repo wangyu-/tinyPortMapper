@@ -23,7 +23,12 @@ int enable_udp=0,enable_tcp=0;
 
 const int listen_fd_buf_size=5*1024*1024;
 
+
+
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
+
+
+adress_t local_adress,remote_adress;
 
 
 struct conn_manager_t  //TODO change map to unordered map
@@ -188,6 +193,48 @@ struct conn_manager_t  //TODO change map to unordered map
 		return 0;
 	}
 }conn_manager;
+
+struct udp_pair_t
+{
+	adress_t adress;
+	int fd;
+	u64_t last_active_time;
+	char ip_port_s[100];
+	//int not_used=0;
+};
+
+struct conn_manager_udp_t
+{
+	list<tcp_pair_t> udp_pair_list;
+	long long last_clear_time;
+	list<tcp_pair_t>::iterator clear_it;
+
+	unordered_map<adress_t,udp_pair_t*,adress_t::hash_function> adress_to_info;
+
+	conn_manager_udp_t()
+	{
+		clear_it=udp_pair_list.begin();
+	}
+
+	int erase(list<udp_pair_t>::iterator &it)
+	{
+		return 0;
+	}
+
+	int clear_inactive()
+	{
+		if(get_current_time()-last_clear_time>conn_clear_interval)
+		{
+			last_clear_time=get_current_time();
+			return clear_inactive0();
+		}
+		return 0;
+	}
+	int clear_inactive0()
+	{
+		return 0;
+	}
+}conn_manager_udp;
 
 struct conn_manager_tcp_t
 {
@@ -963,7 +1010,7 @@ void process_arg(int argc, char *argv[])
 		myexit(-1);
 	}
 }
-int test()
+int test1()
 {
 	struct sockaddr_in local_me,remote_dst;	int yes = 1;int ret;
 
@@ -1038,27 +1085,24 @@ int test()
 	exit(0);
 	return 0;
 }
-struct adress_t
+int test2()
 {
-	enum type_t
-	{
-		ipv4,ipv6,socket_pair
-	} type;
-	union
-	{
-		sockaddr_in ipv4;
-		sockaddr_in6 ipv6;
-		int socket_pair;
-	} inner;
-};
+	adress_t::hash_function hash;
+	adress_t test;
+	test.from_str((char*)"[2001:19f0:7001:1111:00:ff:11:22]:443");
+	printf("%s\n",test.to_str());
+	printf("%d\n",hash(test));
+	test.from_str((char*)"44.55.66.77:443");
+	printf("%s\n",test.to_str());
+	printf("%d\n",hash(test));
 
-struct address_manager_t
-{
-};
+	return 0;
+}
 int main(int argc, char *argv[])
 {
-	adress_t adress;
-	adress.type=adress_t::type_t::ipv4;
+
+	//adress_t adress;
+	//adress.type=adress_t::type_t::ipv4;
 //	test();
 	assert(sizeof(u64_t)==8);
 	assert(sizeof(i64_t)==8);
@@ -1068,8 +1112,8 @@ int main(int argc, char *argv[])
 	int i, j, k;
 	process_arg(argc,argv);
 
-	remote_address_u32=inet_addr(remote_address);
-	local_address_u32=inet_addr(local_address);
+	//remote_address_u32=inet_addr(remote_address);
+	//local_address_u32=inet_addr(local_address);
 
 	event_loop();
 
