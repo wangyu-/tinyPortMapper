@@ -192,13 +192,13 @@ struct tcp_pair_t
 	tcp_info_t remote;
 	u64_t last_active_time;
 	list<tcp_pair_t>::iterator it;
-	char ip_port_s[100];
+	char ip_port_s[max_addr_len];
 	int not_used=0;
 };
 
 
 
-struct adress_t
+struct address_t
 {
 	struct hash_function
 	{
@@ -229,7 +229,7 @@ struct adress_t
     	     return hash;
     	 }
 
-	    u32_t operator()(const adress_t &key) const
+	    u32_t operator()(const address_t &key) const
 		{
 	    	return sdbm((unsigned char*)&key.inner,sizeof(key.inner));
 		}
@@ -241,7 +241,7 @@ struct adress_t
 		sockaddr_in6 ipv6;
 	} inner;
 
-	adress_t()
+	address_t()
 	{
 		clear();
 	}
@@ -275,7 +275,7 @@ struct adress_t
 		return -1;
 	}
 
-    bool operator == (const adress_t &b) const
+    bool operator == (const address_t &b) const
     {
     	//return this->data==b.data;
         return memcmp(&this->inner,&b.inner,sizeof(this->inner));

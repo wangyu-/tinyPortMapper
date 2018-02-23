@@ -561,7 +561,7 @@ int sendto_u64 (int fd,char * buf, int len,int flags, u64_t u64)
 			sizeof(tmp_sockaddr));
 }
 
-int adress_t::from_str(char *str)
+int address_t::from_str(char *str)
 {
 	clear();
 
@@ -614,7 +614,7 @@ int adress_t::from_str(char *str)
 }
 
 
-char* adress_t::to_str()
+char* address_t::to_str()
 {
 	static char res[max_addr_len];
 	char ip_addr[max_addr_len];
@@ -655,7 +655,7 @@ char* adress_t::to_str()
 	return res;
 }
 
-int adress_t::from_sockaddr(sockaddr & addr,socklen_t slen)
+int address_t::from_sockaddr(sockaddr & addr,socklen_t slen)
 {
 
 	if(addr.sa_family==AF_INET6)

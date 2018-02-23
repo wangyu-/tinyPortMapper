@@ -18,6 +18,9 @@ char local_address[100], remote_address[100];
 u32_t remote_address_u32=0,local_address_u32=0;
 int local_port = -1, remote_port = -1;
 
+
+
+
 int max_pending_packet=0;
 int enable_udp=0,enable_tcp=0;
 
@@ -28,7 +31,7 @@ const int listen_fd_buf_size=5*1024*1024;
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
 
-adress_t local_adress,remote_adress;
+address_t local_address_new,remote_address_new;
 
 
 struct conn_manager_t  //TODO change map to unordered map
@@ -196,10 +199,10 @@ struct conn_manager_t  //TODO change map to unordered map
 
 struct udp_pair_t
 {
-	adress_t adress;
+	address_t adress;
 	int fd;
 	u64_t last_active_time;
-	char ip_port_s[100];
+	char ip_port_s[max_addr_len];
 	//int not_used=0;
 };
 
@@ -209,7 +212,7 @@ struct conn_manager_udp_t
 	long long last_clear_time;
 	list<tcp_pair_t>::iterator clear_it;
 
-	unordered_map<adress_t,udp_pair_t*,adress_t::hash_function> adress_to_info;
+	unordered_map<address_t,udp_pair_t*,address_t::hash_function> adress_to_info;
 
 	conn_manager_udp_t()
 	{
@@ -1087,8 +1090,8 @@ int test1()
 }
 int test2()
 {
-	adress_t::hash_function hash;
-	adress_t test;
+	address_t::hash_function hash;
+	address_t test;
 	test.from_str((char*)"[2001:19f0:7001:1111:00:ff:11:22]:443");
 	printf("%s\n",test.to_str());
 	printf("%d\n",hash(test));
