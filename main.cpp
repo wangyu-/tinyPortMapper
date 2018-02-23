@@ -196,22 +196,15 @@ struct conn_manager_t  //TODO change map to unordered map
 }conn_manager;
 */
 
-struct udp_pair_t
-{
-	address_t adress;
-	int fd;
-	u64_t last_active_time;
-	char ip_port_s[max_addr_len];
-	//int not_used=0;
-};
+
 
 struct conn_manager_udp_t
 {
+	unordered_map<address_t,udp_pair_t*,address_t::hash_function> adress_to_info;
+
 	list<tcp_pair_t> udp_pair_list;
 	long long last_clear_time;
 	list<tcp_pair_t>::iterator clear_it;
-
-	unordered_map<address_t,udp_pair_t*,address_t::hash_function> adress_to_info;
 
 	conn_manager_udp_t()
 	{
@@ -266,11 +259,11 @@ struct conn_manager_tcp_t
 		{
 			fd_manager.fd64_close( it->local.fd64);
 			fd_manager.fd64_close( it->remote.fd64);
-			mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->ip_port_s);
+			mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->addr_s);
 		}
 		else
 		{
-			mylog(log_info,"[tcp]closed connection [%s] cleared \n",it->ip_port_s);
+			mylog(log_info,"[tcp]closed connection [%s] cleared \n",it->addr_s);
 		}
 		tcp_pair_list.erase(it);
 		return 0;
@@ -487,9 +480,9 @@ int event_loop()
 				auto it=conn_manager_tcp.tcp_pair_list.end();
 				it--;
 				tcp_pair_t &tcp_pair=*it;
-				strcpy(tcp_pair.ip_port_s,ip_addr);
+				strcpy(tcp_pair.addr_s,ip_addr);
 
-				mylog(log_info,"[tcp]new_connection from [%s],fd1=%d,fd2=%d\n",tcp_pair.ip_port_s,new_fd,new_remote_fd);
+				mylog(log_info,"[tcp]new_connection from [%s],fd1=%d,fd2=%d\n",tcp_pair.addr_s,new_fd,new_remote_fd);
 
 				tcp_pair.local.fd64=fd_manager.create(new_fd);
 				fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
@@ -527,17 +520,21 @@ int event_loop()
 
 				char data[max_data_len_udp+200];
 				int data_len;
-				socklen_t tmp_len = sizeof(sockaddr_in);
-				struct sockaddr_in addr_tmp;
-				memset(&addr_tmp,0,sizeof(addr_tmp));
+
+				socklen_t tmp_len = sizeof(address_t::inner_t);
+				address_t::inner_t tmp_sockaddr_in={0};
+				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
 
 				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp, 0,
-						(struct sockaddr *) &addr_tmp, &tmp_len)) == -1) //<--first packet from a new ip:port turple
+						(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 				{
 					mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
 					//myexit(1);
 					continue;
 				}
+
+				address_t tmp_addr;
+				tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
 
 				/*
 
@@ -664,13 +661,13 @@ int event_loop()
 						mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
 						if(recv_len==0)
 						{
-							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of EOF\n",recv_len,tcp_pair.ip_port_s);
+							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of EOF\n",recv_len,tcp_pair.addr_s);
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(recv_len<0)
 						{
-							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of %s\n",recv_len,tcp_pair.ip_port_s,strerror(errno));
+							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of %s\n",recv_len,tcp_pair.addr_s,strerror(errno));
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
@@ -722,13 +719,13 @@ int event_loop()
 						int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
 						if(send_len==0)
 						{
-							mylog(log_warn,"[tcp]send_len=%d,connection [%s] closed bc of send_len==0\n",send_len,tcp_pair.ip_port_s);
+							mylog(log_warn,"[tcp]send_len=%d,connection [%s] closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(send_len<0)
 						{
-							mylog(log_info,"[tcp]send_len=%d,connection [%s] closed bc of %s\n",send_len,tcp_pair.ip_port_s,strerror(errno));
+							mylog(log_info,"[tcp]send_len=%d,connection [%s] closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}

@@ -150,15 +150,7 @@ struct tcp_info_t:not_copy_able_t
 	}
 };
 
-struct tcp_pair_t
-{
-	tcp_info_t local;
-	tcp_info_t remote;
-	u64_t last_active_time;
-	list<tcp_pair_t>::iterator it;
-	char ip_port_s[max_addr_len];
-	int not_used=0;
-};
+
 
 
 struct address_t
@@ -248,6 +240,25 @@ struct address_t
 
 };
 
+
+struct udp_pair_t
+{
+	address_t adress;
+	int fd;
+	u64_t last_active_time;
+	char addr_s[max_addr_len];
+	//int not_used=0;
+};
+
+struct tcp_pair_t
+{
+	tcp_info_t local;
+	tcp_info_t remote;
+	u64_t last_active_time;
+	list<tcp_pair_t>::iterator it;
+	char addr_s[max_addr_len];
+	int not_used=0;
+};
 
 struct fd_info_t
 {
