@@ -11,191 +11,15 @@ typedef long long i64_t;
 typedef unsigned int u32_t;
 typedef int i32_t;
 
-
 int disable_conn_clear=0;
-
-//char local_address[100], remote_address[100];
-//u32_t remote_address_u32=0,local_address_u32=0;
-//int local_port = -1, remote_port = -1;
-
 
 int max_pending_packet=0;
 int enable_udp=0,enable_tcp=0;
 
 const int listen_fd_buf_size=5*1024*1024;
-
-
-
-int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
-
-
 address_t local_addr,remote_addr;
 
-/*
-struct conn_manager_t  //TODO change map to unordered map
-{
-	//typedef hash_map map;
-	unordered_map<u64_t,u32_t> u64_to_fd;  //conv and u64 are both supposed to be uniq
-	unordered_map<u32_t,u64_t> fd_to_u64;
-
-	unordered_map<u32_t,u64_t> fd_last_active_time;
-
-	unordered_map<u32_t,u64_t>::iterator clear_it;
-
-	//void (*clear_function)(uint64_t u64) ;
-
-	long long last_clear_time;
-	conn_manager_t()
-	{
-		clear_it=fd_last_active_time.begin();
-		long long last_clear_time=0;
-		rehash();
-		//clear_function=0;
-	}
-	~conn_manager_t()
-	{
-		clear();
-	}
-	int get_size()
-	{
-		return fd_to_u64.size();
-	}
-	void rehash()
-	{
-		u64_to_fd.rehash(10007);
-		fd_to_u64.rehash(10007);
-		fd_last_active_time.rehash(10007);
-	}
-	void clear()
-	{
-		if(disable_conn_clear) return ;
-
-		for(auto it=fd_to_u64.begin();it!=fd_to_u64.end();it++)
-		{
-			//int fd=int((it->second<<32u)>>32u);
-			close(  it->first);
-		}
-		u64_to_fd.clear();
-		fd_to_u64.clear();
-		fd_last_active_time.clear();
-
-		clear_it=fd_last_active_time.begin();
-
-	}
-	int exist_fd(u32_t fd)
-	{
-		return fd_to_u64.find(fd)!=fd_to_u64.end();
-	}
-	int exist_u64(u64_t u64)
-	{
-		return u64_to_fd.find(u64)!=u64_to_fd.end();
-	}
-	u32_t find_fd_by_u64(u64_t u64)
-	{
-		return u64_to_fd[u64];
-	}
-	u64_t find_u64_by_fd(u32_t fd)
-	{
-		return fd_to_u64[fd];
-	}
-	int update_active_time(u32_t fd)
-	{
-		return fd_last_active_time[fd]=get_current_time();
-	}
-	int insert_fd(u32_t fd,u64_t u64)
-	{
-		int before=fd_last_active_time.bucket_count();
-		u64_to_fd[u64]=fd;
-		fd_to_u64[fd]=u64;
-		fd_last_active_time[fd]=get_current_time();
-		int after=fd_last_active_time.bucket_count();
-		if(after!=before)//rehash happens!
-		{
-			clear_it=fd_last_active_time.begin();
-		}
-		return 0;
-	}
-	int erase(unordered_map<u32_t,u64_t>::iterator it)
-	{
-		if(disable_conn_clear) return 0;
-
-
-		//if(clear_it==it)
-		//	clear_it++;//not necessary
-
-		int fd=it->first;
-		u64_t u64=fd_to_u64[fd];
-
-		ip_port_t ip_port;
-		ip_port.from_u64(u64);
-		mylog(log_info,"[udp] inactive connection [%s] cleared\n",ip_port.to_s());
-
-
-		fd_manager.fd_close(fd);
-		fd_to_u64.erase(fd);
-		u64_to_fd.erase(u64);
-		fd_last_active_time.erase(fd);
-		return 0;
-	}
-	int erase_fd(int fd)
-	{
-		auto it=fd_last_active_time.find(fd);
-		assert(it!=fd_last_active_time.end());
-		erase(it);
-		return 0;
-	}
-	int clear_inactive()
-	{
-		if(get_current_time()-last_clear_time>conn_clear_interval)
-		{
-			last_clear_time=get_current_time();
-			return clear_inactive0();
-		}
-		return 0;
-	}
-	int clear_inactive0()
-	{
-		if(disable_conn_clear) return 0;
-
-		unordered_map<u32_t,u64_t>::iterator it,old_it;
-		int cnt=0;
-		it=clear_it;
-		int size=fd_last_active_time.size();
-		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 2% each time,to avoid latency glitch
-
-		u64_t current_time=get_current_time();
-		num_to_clean=min(num_to_clean,size);
-		for(;;)
-		{
-			if(cnt>=num_to_clean) break;
-			if(fd_last_active_time.begin()==fd_last_active_time.end()) break;
-
-			if(it==fd_last_active_time.end())
-			{
-				it=fd_last_active_time.begin();
-			}
-
-			if( current_time -it->second  >conn_timeout_udp )
-			{
-				//mylog(log_info,"inactive conv %u cleared \n",it->first);
-				old_it=it;
-				it++;
-				//u32_t fd= old_it->first;
-				erase(old_it);
-
-			}
-			else
-			{
-				it++;
-			}
-			cnt++;
-		}
-		clear_it=it;
-		return 0;
-	}
-}conn_manager;
-*/
-
+int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
 
 struct conn_manager_udp_t
@@ -208,6 +32,7 @@ struct conn_manager_udp_t
 
 	conn_manager_udp_t()
 	{
+		adress_to_info.reserve(10007);
 		clear_it=udp_pair_list.begin();
 	}
 
@@ -227,6 +52,38 @@ struct conn_manager_udp_t
 	}
 	int clear_inactive0()
 	{
+		if(disable_conn_clear) return 0;
+
+		int cnt=0;
+		list<udp_pair_t>::iterator it=clear_it,old_it;
+		int size=udp_pair_list.size();
+		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 2% each time,to avoid latency glitch
+
+		u64_t current_time=get_current_time();
+		num_to_clean=min(num_to_clean,size);
+		for(;;)
+		{
+			if(cnt>=num_to_clean) break;
+			if(udp_pair_list.begin()==udp_pair_list.end()) break;
+
+			if(it==udp_pair_list.end())
+			{
+				it=udp_pair_list.begin();
+			}
+
+			if( current_time - it->last_active_time  >conn_timeout_udp)
+			{
+				old_it=it;
+				it++;
+				erase(old_it);
+			}
+			else
+			{
+				it++;
+			}
+			cnt++;
+		}
+		clear_it=it;
 		return 0;
 	}
 }conn_manager_udp;
@@ -302,7 +159,6 @@ struct conn_manager_tcp_t
 			{
 				old_it=it;
 				it++;
-				//u32_t fd= old_it->first;
 				erase(old_it);
 			}
 			else
@@ -400,7 +256,7 @@ int event_loop()
 	int clear_timer_fd=-1;
 	set_timer(epollfd,clear_timer_fd);
 
-	u32_t roller=0;
+	//u32_t roller=0;
 	for (;;)
 	{
 		int nfds = epoll_wait(epollfd, events, max_events, 180 * 1000); //3mins
@@ -554,7 +410,7 @@ int event_loop()
 						mylog(log_info,"[udp]new connection from [%s],but ignored,bc of max_conv_num reached\n",ip_addr);
 						continue;
 					}
-					int new_udp_fd=tmp_addr.new_connected_udp_fd();
+					int new_udp_fd=remote_addr.new_connected_udp_fd();
 					if(new_udp_fd==-1)
 					{
 						mylog(log_info,"[udp]new connection from [%s] ,but create udp fd failed\n",ip_addr);
@@ -586,14 +442,16 @@ int event_loop()
 					fd_manager.get_info(fd64).udp_pair_p=&udp_pair;
 					conn_manager_udp.adress_to_info[tmp_addr]=&udp_pair;
 
-
 				}
 
 				auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+				assert(it!=conn_manager_udp.adress_to_info.end() );
 
 				udp_pair_t &udp_pair=*(it->second);
 				int udp_fd= udp_pair.fd;
 				udp_pair.last_active_time=get_current_time();
+
+
 
 				int ret;
 				ret = send(udp_fd, data,data_len, 0);
@@ -613,10 +471,12 @@ int event_loop()
 				read(clear_timer_fd, &value, 8);
 
 				mylog(log_trace, "timer!\n");
-				roller++;
-				roller&=0x0001;
-				if(roller==0) conn_manager_udp.clear_inactive();
-				else if(roller==1) conn_manager_tcp.clear_inactive();
+				//roller++;
+				//roller&=0x0001;
+				//if(roller==0)
+				conn_manager_udp.clear_inactive();
+				//else if(roller==1)
+				conn_manager_tcp.clear_inactive();
 
 			}
 			else if(events[idx].data.u64 > u32_t(-1))

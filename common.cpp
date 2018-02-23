@@ -636,10 +636,10 @@ void address_t::to_str(char * s)
 	ip_addr[max_addr_len-1]=0;
 	if(get_type()==AF_INET6)
 	{
-		sprintf(s,"[%s]:%u\n",ip_addr,(u32_t)port);
+		sprintf(s,"[%s]:%u",ip_addr,(u32_t)port);
 	}else
 	{
-		sprintf(s,"%s:%u\n",ip_addr,(u32_t)port);
+		sprintf(s,"%s:%u",ip_addr,(u32_t)port);
 	}
 
 	//return res;

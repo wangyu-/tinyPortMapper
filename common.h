@@ -235,7 +235,7 @@ struct address_t
     bool operator == (const address_t &b) const
     {
     	//return this->data==b.data;
-        return memcmp(&this->inner,&b.inner,sizeof(this->inner));
+        return memcmp(&this->inner,&b.inner,sizeof(this->inner))==0;
     }
 
     int new_connected_udp_fd();
