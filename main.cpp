@@ -39,7 +39,7 @@ struct conn_manager_udp_t
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
-		mylog(log_info,"[udp]inactive connection {%s} cleared \n",it->addr_s);
+		mylog(log_info,"[udp]inactive connection {%s} cleared, udp connections=%d\n",it->addr_s,(int)udp_pair_list.size());
 
 		auto tmp_it=adress_to_info.find(it->adress);
 		assert(tmp_it!=adress_to_info.end());
@@ -127,11 +127,11 @@ struct conn_manager_tcp_t
 		{
 			fd_manager.fd64_close( it->local.fd64);
 			fd_manager.fd64_close( it->remote.fd64);
-			mylog(log_info,"[tcp]inactive connection {%s} cleared \n",it->addr_s);
+			mylog(log_info,"[tcp]inactive connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)tcp_pair_list.size());
 		}
 		else
 		{
-			mylog(log_info,"[tcp]closed connection {%s} cleared \n",it->addr_s);
+			mylog(log_info,"[tcp]closed connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)tcp_pair_list.size());
 		}
 		tcp_pair_list.erase(it);
 		return 0;
@@ -292,7 +292,7 @@ int event_loop()
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
 					mylog(log_error,"[tcp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					//continue;
+					//if there is an error, we will eventually get it at accept()
 				}
 
 				socklen_t tmp_len = sizeof(address_t::storage_t);
@@ -318,7 +318,7 @@ int event_loop()
 
 				if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
 				{
-					mylog(log_warn,"[tcp]new connection from [%s],but ignored,bc of max_conn_num reached\n",ip_addr);
+					mylog(log_warn,"[tcp]new connection from {%s},but ignored,bc of max_conn_num reached\n",ip_addr);
 					close(new_fd);
 					continue;
 				}
@@ -349,7 +349,7 @@ int event_loop()
 				tcp_pair_t &tcp_pair=*it;
 				strcpy(tcp_pair.addr_s,ip_addr);
 
-				mylog(log_info,"[tcp]new_connection from [%s],fd1=%d,fd2=%d\n",tcp_pair.addr_s,new_fd,new_remote_fd);
+				mylog(log_info,"[tcp]new_connection from {%s},fd1=%d,fd2=%d,tcp connections=%d\n",tcp_pair.addr_s,new_fd,new_remote_fd,(int)conn_manager_tcp.tcp_pair_list.size());
 
 				tcp_pair.local.fd64=fd_manager.create(new_fd);
 				fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
@@ -382,7 +382,7 @@ int event_loop()
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
 					mylog(log_error,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					//continue;
+					//if there is an error, we will eventually get it at recvfrom();
 				}
 
 				char data[max_data_len_udp+200];
@@ -408,26 +408,27 @@ int event_loop()
 				char ip_addr[max_addr_len];
 				tmp_addr.to_str(ip_addr);
 
-				mylog(log_trace, "[udp]received data from udp_listen_fd from [%s], len=%d\n",ip_addr,data_len);
+				mylog(log_trace, "[udp]received data from udp_listen_fd from {%s}, len=%d\n",ip_addr,data_len);
 
 				if(data_len==max_data_len_udp+1)
 				{
-					mylog(log_warn,"huge packet, data_len > %d,dropped\n",max_data_len_udp);
+					mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",ip_addr,max_data_len_udp);
 					continue;
 				}
 
-				if(conn_manager_udp.adress_to_info.find(tmp_addr)==conn_manager_udp.adress_to_info.end())
+				auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+				if(it==conn_manager_udp.adress_to_info.end())
 				{
 
 					if(int(conn_manager_udp.udp_pair_list.size())>=max_conn_num)
 					{
-						mylog(log_info,"[udp]new connection from [%s],but ignored,bc of max_conv_num reached\n",ip_addr);
+						mylog(log_info,"[udp]new connection from {%s},but ignored,bc of max_conv_num reached\n",ip_addr);
 						continue;
 					}
 					int new_udp_fd=remote_addr.new_connected_udp_fd();
 					if(new_udp_fd==-1)
 					{
-						mylog(log_info,"[udp]new connection from [%s] ,but create udp fd failed\n",ip_addr);
+						mylog(log_info,"[udp]new connection from {%s} ,but create udp fd failed\n",ip_addr);
 						continue;
 					}
 					fd64_t fd64=fd_manager.create(new_udp_fd);
@@ -440,31 +441,33 @@ int event_loop()
 
 					ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
 					assert(ret==0);
-					mylog(log_info,"[udp]new connection from [%s],udp fd=%d\n",ip_addr,new_udp_fd);
+
 
 					conn_manager_udp.udp_pair_list.emplace_back();
-					auto it=conn_manager_udp.udp_pair_list.end();
-					it--;
-					udp_pair_t &udp_pair=*it;
+					auto list_it=conn_manager_udp.udp_pair_list.end();
+					list_it--;
+					udp_pair_t &udp_pair=*list_it;
+
+					mylog(log_info,"[udp]new connection from {%s},udp fd=%d,udp connections=%d\n",ip_addr,new_udp_fd,(int)conn_manager_udp.udp_pair_list.size());
 
 					udp_pair.adress=tmp_addr;
 					udp_pair.fd64=fd64;
 					udp_pair.last_active_time=get_current_time();
 					strcpy(udp_pair.addr_s,ip_addr);
-					udp_pair.it=it;
+					udp_pair.it=list_it;
 
 					fd_manager.get_info(fd64).udp_pair_p=&udp_pair;
 					conn_manager_udp.adress_to_info[tmp_addr]=&udp_pair;
-
+					it=conn_manager_udp.adress_to_info.find(tmp_addr);
+					//it=adress_to_info.
 				}
 
-				auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+				//auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
 				assert(it!=conn_manager_udp.adress_to_info.end() );
 
 				udp_pair_t &udp_pair=*(it->second);
 				int udp_fd= fd_manager.to_fd(udp_pair.fd64);
 				udp_pair.last_active_time=get_current_time();
-
 
 				int ret;
 				ret = send(udp_fd, data,data_len, 0);
@@ -484,11 +487,7 @@ int event_loop()
 				read(clear_timer_fd, &value, 8);
 
 				mylog(log_trace, "timer!\n");
-				//roller++;
-				//roller&=0x0001;
-				//if(roller==0)
 				conn_manager_udp.clear_inactive();
-				//else if(roller==1)
 				conn_manager_tcp.clear_inactive();
 
 			}
@@ -550,13 +549,13 @@ int event_loop()
 						mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
 						if(recv_len==0)
 						{
-							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of EOF\n",recv_len,tcp_pair.addr_s);
+							mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of EOF\n",recv_len,tcp_pair.addr_s);
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(recv_len<0)
 						{
-							mylog(log_info,"[tcp]recv_len=%d,connection [%s] closed bc of %s\n",recv_len,tcp_pair.addr_s,strerror(errno));
+							mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of %s\n",recv_len,tcp_pair.addr_s,strerror(errno));
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
@@ -608,13 +607,13 @@ int event_loop()
 						int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
 						if(send_len==0)
 						{
-							mylog(log_warn,"[tcp]send_len=%d,connection [%s] closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
+							mylog(log_warn,"[tcp]send_len=%d,connection {%s} closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
 						if(send_len<0)
 						{
-							mylog(log_info,"[tcp]send_len=%d,connection [%s] closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
+							mylog(log_info,"[tcp]send_len=%d,connection {%s} closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
 							conn_manager_tcp.delayed_erase(tcp_pair.it);
 							continue;
 						}
@@ -660,10 +659,8 @@ int event_loop()
 					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 					{
 						mylog(log_warn,"[udp]EPOLLERR or EPOLLHUP from udp_remote_fd events[idx].events=%x \n",events[idx].events);
-						//conn_manager.erase_fd(udp_fd);
-						//continue;
-					}
 
+					}
 
 					char data[max_data_len_udp+200];
 					int data_len =recv(udp_fd,data,max_data_len_udp+1,0);
@@ -671,18 +668,12 @@ int event_loop()
 
 					if(data_len==max_data_len_udp+1)
 					{
-						mylog(log_warn,"huge packet, data_len > %d,dropped\n",max_data_len_udp);
+						mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",udp_pair.addr_s,max_data_len_udp);
 						continue;
 					}
 
 					if(data_len<0)
 					{
-						if(errno==ECONNREFUSED)
-						{
-							//conn_manager.clear_list.push_back(udp_fd);
-							mylog(log_debug, "recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
-						}
-
 						mylog(log_warn,"[udp]recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
 						continue;
 					}

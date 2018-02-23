@@ -54,6 +54,7 @@
 #include<list>
 #include <memory>
 #include <vector>
+//#include <pair>
 using  namespace std;
 
 
@@ -210,6 +211,10 @@ struct udp_pair_t:not_copy_able_t
 	u64_t last_active_time;
 	char addr_s[max_addr_len];
 	list<udp_pair_t>::iterator it;
+	udp_pair_t()
+	{
+		addr_s[0]=0;
+	}
 	//int not_used=0;
 };
 
@@ -221,6 +226,10 @@ struct tcp_pair_t:not_copy_able_t
 	list<tcp_pair_t>::iterator it;
 	char addr_s[max_addr_len];
 	int not_used=0;
+	tcp_pair_t()
+	{
+		addr_s[0]=0;
+	}
 };
 
 struct fd_info_t:not_copy_able_t
