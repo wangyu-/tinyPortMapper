@@ -89,18 +89,7 @@ const u32_t timer_interval=400;//this should be smaller than heartbeat_interval 
 
 extern int about_to_exit;
 
-
-
 extern int socket_buf_size;
-
-
-typedef u32_t id_t;
-
-typedef u64_t iv_t;
-
-typedef u64_t padding_t;
-
-typedef u64_t anti_replay_seq_t;
 
 typedef u64_t fd64_t;
 
@@ -119,7 +108,6 @@ struct not_copy_able_t
 		assert(0==1);
 	}
 };
-
 
 struct tcp_info_t:not_copy_able_t
 {
@@ -150,10 +138,7 @@ struct tcp_info_t:not_copy_able_t
 	}
 };
 
-
-
-
-struct address_t
+struct address_t  //TODO scope id
 {
 	struct hash_function
 	{
@@ -242,7 +227,7 @@ struct address_t
 };
 
 
-struct udp_pair_t
+struct udp_pair_t:not_copy_able_t
 {
 	address_t adress;
 	fd64_t fd64;
@@ -252,7 +237,7 @@ struct udp_pair_t
 	//int not_used=0;
 };
 
-struct tcp_pair_t
+struct tcp_pair_t:not_copy_able_t
 {
 	tcp_info_t local;
 	tcp_info_t remote;
@@ -273,9 +258,7 @@ struct fd_info_t
 u64_t get_current_time();
 u64_t get_current_time_us();
 u64_t pack_u64(u32_t a,u32_t b);
-
 u32_t get_u64_h(u64_t a);
-
 u32_t get_u64_l(u64_t a);
 
 void write_u16(char *,u16_t a);
@@ -299,37 +282,18 @@ u64_t hton64(u64_t a);
 bool larger_than_u16(uint16_t a,uint16_t b);
 bool larger_than_u32(u32_t a,u32_t b);
 void setnonblocking(int sock);
+
 int set_buf_size(int fd,int socket_buf_size,int force_socket_buf=0);
 
-unsigned short csum(const unsigned short *ptr,int nbytes);
-
 void  signal_handler(int sig);
-int numbers_to_char(id_t id1,id_t id2,id_t id3,char * &data,int &len);
-int char_to_numbers(const char * data,int len,id_t &id1,id_t &id2,id_t &id3);
 
-void myexit(int a);
-
-int add_iptables_rule(char *);
-
-int clear_iptables_rule();
 void get_true_random_chars(char * s,int len);
 int random_between(u32_t a,u32_t b);
 
-int set_timer_ms(int epollfd,int &timer_fd,u32_t timer_interval);
 
 int round_up_div(int a,int b);
 
-int create_fifo(char * file);
-/*
-int create_new_udp(int &new_udp_fd,int remote_address_uint32,int remote_port);
-*/
-
-int new_listen_socket(int &fd,u32_t ip,int port);
-
-int create_new_udp(int &new_udp_fd,u32_t ip,int port);
-
 int set_timer(int epollfd,int &timer_fd);
 
-int sendto_u64(int fd,char * buf, int len,int flags, u64_t u64);
 
 //#endif /* COMMON_H_ */
