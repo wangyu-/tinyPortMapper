@@ -21,12 +21,25 @@ Assume you want to map/forward local port 1234 to 10.222.2.1:443
 
 # for UDP only
 ./tinymapper_amd64 -l0.0.0.0:1234 -r10.222.2.1:443 -u
+
+# for ipv6, both TCP and UDP
+# ipv6 address must be surrounded with `[]`, ipv4 address must NOT be surrounded with `[]`
+./tinymapper_amd64 -l[::]:1234 -r[2001:19f0:7001:1111:00:ff:11:22]:443 -t -u
 ```
 
 ##### NOTE
 ```
-#local port and remote port can be the same
+# local port and remote port can be the same
 ./tinymapper_amd64 -l0.0.0.0:443 -r10.222.2.1:443 -u
+
+# you can also use 6-to-4 or 4-to-6 forward
+./tinymapper_amd64 -l0.0.0.0:1234 -r[2001:19f0:7001:1111:00:ff:11:22]:443 -t -u
+./tinymapper_amd64 -l[::]:1234 -r44.55.66.77:443 -t -u
+
+# you can also use ipv4-mapped ipv6 address
+# this is especially useful if you want to play with ipv6 and you dont have a real ipv6 address
+./tinymapper_amd64 -l[::]:4433 -r[::ffff:10.222.2.1]:443 -t -u
+./tinymapper_amd64 -l[::ffff:0.0.0.0]:4433 -r[::ffff:10.222.2.1]:443 -t -u
 ```
 # Options
 ```
