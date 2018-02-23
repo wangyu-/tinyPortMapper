@@ -138,37 +138,13 @@ struct tcp_info_t:not_copy_able_t
 	}
 };
 
+u32_t djb2(unsigned char *str,int len);
+u32_t sdbm(unsigned char *str,int len);
+
 struct address_t  //TODO scope id
 {
 	struct hash_function
 	{
-		u32_t djb2(unsigned char *str,int len) const
-    	{
-    		 u32_t hash = 5381;
-    	     int c;
-    	     int i=0;
-    	    while(c = *str++,i++!=len)
-    	    {
-    	         hash = ((hash << 5) + hash)^c; /* (hash * 33) ^ c */
-    	    }
-
-    	     hash=htonl(hash);
-    	     return hash;
-    	 }
-
-		u32_t sdbm(unsigned char *str,int len) const
-    	{
-    	     u32_t hash = 0;
-    	     int c;
-    	     int i=0;
-			while(c = *str++,i++!=len)
-			{
-				 hash = c + (hash << 6) + (hash << 16) - hash;
-			}
-    	     //hash=htonl(hash);
-    	     return hash;
-    	 }
-
 	    u32_t operator()(const address_t &key) const
 		{
 	    	return sdbm((unsigned char*)&key.inner,sizeof(key.inner));
@@ -247,7 +223,7 @@ struct tcp_pair_t:not_copy_able_t
 	int not_used=0;
 };
 
-struct fd_info_t
+struct fd_info_t:not_copy_able_t
 {
 	int is_tcp=0;
 	tcp_pair_t *tcp_pair_p=0;
@@ -294,6 +270,5 @@ int random_between(u32_t a,u32_t b);
 int round_up_div(int a,int b);
 
 int set_timer(int epollfd,int &timer_fd);
-
 
 //#endif /* COMMON_H_ */

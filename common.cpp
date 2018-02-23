@@ -395,7 +395,11 @@ int address_t::from_str(char *str)
 			mylog(log_error,"ip_addr %s is not an ipv6 address, %d\n",ip_addr_str,ret);
 			myexit(-1);
 		}
-		else if(ret!=1) // inet_pton returns 1 on success
+		else if(ret==1) // inet_pton returns 1 on success
+		{
+			//okay
+		}
+		else
 		{
 			mylog(log_error,"ip_addr %s is invalid, %d\n",ip_addr_str,ret);
 			myexit(-1);
@@ -411,17 +415,15 @@ int address_t::from_str(char *str)
 			mylog(log_error,"ip_addr %s is not an ipv4 address, %d\n",ip_addr_str,ret);
 			myexit(-1);
 		}
-		else if(ret!=1)
+		else if(ret==1)
+		{
+			//okay
+		}
+		else
 		{
 			mylog(log_error,"ip_addr %s is invalid, %d\n",ip_addr_str,ret);
 			myexit(-1);
 		}
-	}
-
-	if(ret!=1)  // inet_pton returns 1 on success
-	{
-		mylog(log_error,"ip_addr %s parse failed , %d\n",ip_addr_str,ret);
-		myexit(-1);
 	}
 
 	return 0;
@@ -454,7 +456,7 @@ void address_t::to_str(char * s)
 		assert(0==1);
 	}
 
-	if(ret==0)
+	if(ret==0) //NULL on failure
 	{
 		mylog(log_error,"inet_ntop failed\n");
 		myexit(-1);
@@ -517,3 +519,31 @@ int address_t::new_connected_udp_fd()
 
 	return new_udp_fd;
 }
+
+u32_t djb2(unsigned char *str,int len)
+{
+	 u32_t hash = 5381;
+     int c;
+     int i=0;
+    while(c = *str++,i++!=len)
+    {
+         hash = ((hash << 5) + hash)^c; /* (hash * 33) ^ c */
+    }
+
+     hash=htonl(hash);
+     return hash;
+ }
+
+u32_t sdbm(unsigned char *str,int len)
+{
+     u32_t hash = 0;
+     int c;
+     int i=0;
+	while(c = *str++,i++!=len)
+	{
+		 hash = c + (hash << 6) + (hash << 16) - hash;
+	}
+     //hash=htonl(hash);
+     return hash;
+ }
+

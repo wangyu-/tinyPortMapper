@@ -32,13 +32,14 @@ struct conn_manager_udp_t
 
 	conn_manager_udp_t()
 	{
+		last_clear_time=0;
 		adress_to_info.reserve(10007);
 		clear_it=udp_pair_list.begin();
 	}
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
-		mylog(log_info,"[udp]inactive connection [%s] cleared \n",it->addr_s);
+		mylog(log_info,"[udp]inactive connection {%s} cleared \n",it->addr_s);
 
 		auto tmp_it=adress_to_info.find(it->adress);
 		assert(tmp_it!=adress_to_info.end());
@@ -104,6 +105,7 @@ struct conn_manager_tcp_t
 	list<tcp_pair_t>::iterator clear_it;
 	conn_manager_tcp_t()
 	{
+		last_clear_time=0;
 		clear_it=tcp_pair_list.begin();
 	}
 	int delayed_erase(list<tcp_pair_t>::iterator &it)
@@ -125,11 +127,11 @@ struct conn_manager_tcp_t
 		{
 			fd_manager.fd64_close( it->local.fd64);
 			fd_manager.fd64_close( it->remote.fd64);
-			mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->addr_s);
+			mylog(log_info,"[tcp]inactive connection {%s} cleared \n",it->addr_s);
 		}
 		else
 		{
-			mylog(log_info,"[tcp]closed connection [%s] cleared \n",it->addr_s);
+			mylog(log_info,"[tcp]closed connection {%s} cleared \n",it->addr_s);
 		}
 		tcp_pair_list.erase(it);
 		return 0;
@@ -228,7 +230,7 @@ int event_loop()
 			myexit(1);
 		}
 
-	    if (listen (local_listen_fd_tcp, 512) !=0) //512 is max pending tcp connection
+	    if (listen (local_listen_fd_tcp, 512) !=0) //512 is max pending tcp connection,its large enough
 	    {
 			mylog(log_fatal,"[tcp]socket listen failed error, %s",strerror(errno));
 			myexit(1);
@@ -903,7 +905,6 @@ int main(int argc, char *argv[])
 	process_arg(argc,argv);
 
 	event_loop();
-
 
 	return 0;
 }
