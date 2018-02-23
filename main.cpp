@@ -38,9 +38,12 @@ struct conn_manager_udp_t
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
-		mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->addr_s);
+		mylog(log_info,"[udp]inactive connection [%s] cleared \n",it->addr_s);
 
-		adress_to_info.erase(it->adress);
+		auto tmp_it=adress_to_info.find(it->adress);
+		assert(tmp_it!=adress_to_info.end());
+		adress_to_info.erase(tmp_it);
+
 		fd_manager.fd64_close(it->fd64);
 		udp_pair_list.erase(it);
 
@@ -290,8 +293,8 @@ int event_loop()
 					//continue;
 				}
 
-				socklen_t tmp_len = sizeof(address_t::inner_t);
-				address_t::inner_t tmp_sockaddr_in={0};
+				socklen_t tmp_len = sizeof(address_t::storage_t);
+				address_t::storage_t tmp_sockaddr_in={0};
 				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
 
 				int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &tmp_sockaddr_in,&tmp_len);
@@ -383,11 +386,11 @@ int event_loop()
 				char data[max_data_len_udp+200];
 				int data_len;
 
-				socklen_t tmp_len = sizeof(address_t::inner_t);
-				address_t::inner_t tmp_sockaddr_in={0};
+				socklen_t tmp_len = sizeof(address_t::storage_t);
+				address_t::storage_t tmp_sockaddr_in={0};
 				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
 
-				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp, 0,
+				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp+1, 0,
 						(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 				{
 					mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
@@ -405,8 +408,11 @@ int event_loop()
 
 				mylog(log_trace, "[udp]received data from udp_listen_fd from [%s], len=%d\n",ip_addr,data_len);
 
-				//unordered_map<address_t,udp_pair_t*,address_t::hash_function>::iterator it;
-				//it=conn_manager_udp.adress_to_info.find(tmp_addr);
+				if(data_len==max_data_len_udp+1)
+				{
+					mylog(log_warn,"huge packet, data_len > %d,dropped\n",max_data_len_udp);
+					continue;
+				}
 
 				if(conn_manager_udp.adress_to_info.find(tmp_addr)==conn_manager_udp.adress_to_info.end())
 				{
@@ -656,9 +662,17 @@ int event_loop()
 						//continue;
 					}
 
+
 					char data[max_data_len_udp+200];
-					int data_len =recv(udp_fd,data,max_data_len_udp,0);
+					int data_len =recv(udp_fd,data,max_data_len_udp+1,0);
 					mylog(log_trace, "[udp]received data from udp fd %d, len=%d\n", udp_fd,data_len);
+
+					if(data_len==max_data_len_udp+1)
+					{
+						mylog(log_warn,"huge packet, data_len > %d,dropped\n",max_data_len_udp);
+						continue;
+					}
+
 					if(data_len<0)
 					{
 						if(errno==ECONNREFUSED)

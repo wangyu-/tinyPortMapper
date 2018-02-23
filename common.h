@@ -190,12 +190,12 @@ struct address_t
 		}
 	};
 
-	union inner_t //sockaddr_storage is too huge, we dont use it.
+	union storage_t //sockaddr_storage is too huge, we dont use it.
 	{
 		sockaddr_in ipv4;
 		sockaddr_in6 ipv6;
 	};
-	inner_t inner;
+	storage_t inner;
 
 	address_t()
 	{
