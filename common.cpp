@@ -482,7 +482,7 @@ int new_listen_socket(int &fd,u32_t ip,int port)
 
 	return 0;
 }
-
+/*
 int create_new_udp(int &new_udp_fd,u32_t ip,int port)
 {
 	struct sockaddr_in remote_addr_in;
@@ -511,7 +511,7 @@ int create_new_udp(int &new_udp_fd,u32_t ip,int port)
 
 
 	return 0;
-}
+}*/
 
 int set_timer(int epollfd,int &timer_fd)
 {

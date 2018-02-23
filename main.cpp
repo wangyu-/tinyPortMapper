@@ -14,11 +14,9 @@ typedef int i32_t;
 
 int disable_conn_clear=0;
 
-char local_address[100], remote_address[100];
-u32_t remote_address_u32=0,local_address_u32=0;
-int local_port = -1, remote_port = -1;
-
-
+//char local_address[100], remote_address[100];
+//u32_t remote_address_u32=0,local_address_u32=0;
+//int local_port = -1, remote_port = -1;
 
 
 int max_pending_packet=0;
@@ -31,9 +29,9 @@ const int listen_fd_buf_size=5*1024*1024;
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
 
-address_t local_address_new,remote_address_new;
+address_t local_addr,remote_addr;
 
-
+/*
 struct conn_manager_t  //TODO change map to unordered map
 {
 	//typedef hash_map map;
@@ -121,10 +119,10 @@ struct conn_manager_t  //TODO change map to unordered map
 	{
 		if(disable_conn_clear) return 0;
 
-		/*
-		if(clear_it==it)
-			clear_it++;//not necessary
-		*/
+
+		//if(clear_it==it)
+		//	clear_it++;//not necessary
+
 		int fd=it->first;
 		u64_t u64=fd_to_u64[fd];
 
@@ -196,6 +194,7 @@ struct conn_manager_t  //TODO change map to unordered map
 		return 0;
 	}
 }conn_manager;
+*/
 
 struct udp_pair_t
 {
@@ -329,8 +328,9 @@ int event_loop()
 	int local_listen_fd_tcp=-1;
 	int local_listen_fd_udp=-1;
 
-	struct sockaddr_in local_me,remote_dst;	int yes = 1;int ret;
-	local_listen_fd_tcp = socket(AF_INET, SOCK_STREAM, 0);
+	//struct sockaddr_in local_me,remote_dst;
+	int yes = 1;int ret;
+	local_listen_fd_tcp = socket(local_addr.get_type(), SOCK_STREAM, 0);
 	if(local_listen_fd_tcp<0)
 	{
 		mylog(log_fatal,"[tcp]create listen socket failed\n");
@@ -342,7 +342,7 @@ int event_loop()
 	setnonblocking(local_listen_fd_tcp);
 
 
-	local_listen_fd_udp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	local_listen_fd_udp = socket(local_addr.get_type(), SOCK_DGRAM, IPPROTO_UDP);
 	if(local_listen_fd_udp<0)
 	{
 		mylog(log_fatal,"[udp]create listen socket failed\n");
@@ -352,13 +352,6 @@ int event_loop()
 	set_buf_size(local_listen_fd_udp,listen_fd_buf_size);
 	setnonblocking(local_listen_fd_udp);
 
-
-
-	socklen_t local_len = sizeof(sockaddr_in);
-	memset(&local_me, 0, sizeof(local_me));
-	local_me.sin_family = AF_INET;
-	local_me.sin_port = htons(local_port);
-	local_me.sin_addr.s_addr = local_address_u32;
 
 
 	int epollfd = epoll_create1(0);
@@ -371,7 +364,7 @@ int event_loop()
 	}
 	if(enable_tcp)
 	{
-		if (bind(local_listen_fd_tcp, (struct sockaddr*) &local_me, local_len) !=0)
+		if (bind(local_listen_fd_tcp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) !=0)
 		{
 			mylog(log_fatal,"[tcp]socket bind failed, %s",strerror(errno));
 			myexit(1);
@@ -395,7 +388,7 @@ int event_loop()
 
 	if(enable_udp)
 	{
-		if (bind(local_listen_fd_udp, (struct sockaddr*) &local_me, local_len) == -1)
+		if (bind(local_listen_fd_udp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) == -1)
 		{
 			mylog(log_fatal,"[udp]socket bind error");
 			myexit(1);
@@ -413,12 +406,6 @@ int event_loop()
 
 	int clear_timer_fd=-1;
 	set_timer(epollfd,clear_timer_fd);
-
-	socklen_t remote_len = sizeof(sockaddr_in);
-	memset(&remote_dst, 0, sizeof(remote_dst));
-	remote_dst.sin_family = AF_INET;
-	remote_dst.sin_port = htons(remote_port);
-	remote_dst.sin_addr.s_addr = remote_address_u32;
 
 	u32_t roller=0;
 	for (;;)
@@ -472,7 +459,7 @@ int event_loop()
 				}
 
 
-				int new_remote_fd = socket(AF_INET, SOCK_STREAM, 0);
+				int new_remote_fd = socket(remote_addr.get_type(), SOCK_STREAM, 0);
 				if(new_remote_fd<0)
 				{
 					mylog(log_fatal,"[tcp]create new_remote_fd failed \n");
@@ -481,7 +468,7 @@ int event_loop()
 				set_buf_size(new_remote_fd,socket_buf_size);
 				setnonblocking(new_remote_fd);
 
-				ret=connect(new_remote_fd,(struct sockaddr*) &remote_dst,remote_len);
+				ret=connect(new_remote_fd,(struct sockaddr*) &remote_addr.inner,remote_addr.get_len());
 				if(ret!=0)
 				{
 					mylog(log_debug,"[tcp]connect returned %d,errno=%s\n",ret,strerror(errno));
@@ -526,6 +513,7 @@ int event_loop()
 			}
 			else if (events[idx].data.u64 == (u64_t)local_listen_fd_udp) //data income from local end
 			{
+
 				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
 				{
 					mylog(log_error,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
@@ -545,6 +533,8 @@ int event_loop()
 					//myexit(1);
 					continue;
 				}
+
+				/*
 
 
 				data[data_len] = 0; //for easier debug
@@ -591,6 +581,8 @@ int event_loop()
 					mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
 				}
 
+				*/
+
 			}
 			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
 			{
@@ -605,7 +597,7 @@ int event_loop()
 				mylog(log_trace, "timer!\n");
 				roller++;
 				roller&=0x0001;
-				if(roller==0) conn_manager.clear_inactive();
+				if(roller==0) conn_manager_udp.clear_inactive();
 				else if(roller==1) conn_manager_tcp.clear_inactive();
 
 			}
@@ -768,6 +760,7 @@ int event_loop()
 				else  //its a udp connection
 				{
 
+					/*
 					int udp_fd=fd_manager.to_fd(fd64);
 					assert(conn_manager.exist_fd(udp_fd));
 					//if(!conn_manager.exist_fd(udp_fd)) continue;
@@ -804,7 +797,7 @@ int event_loop()
 					if (ret < 0) {
 						mylog(log_warn, "[udp]sento returned %d,%s\n", ret,strerror(errno));
 						//perror("ret<0");
-					}
+					}*/
 				}
 			}
 			else
@@ -923,34 +916,11 @@ void process_arg(int argc, char *argv[])
 
 		case 'l':
 			no_l = 0;
-			if (strchr(optarg, ':') != 0)
-			{
-				sscanf(optarg, "%[^:]:%d", local_address, &local_port);
-			}
-			else
-			{
-				mylog(log_fatal," -r ip:port\n");
-				myexit(1);
-				strcpy(local_address, "127.0.0.1");
-				sscanf(optarg, "%d", &local_port);
-			}
+			local_addr.from_str(optarg);
 			break;
 		case 'r':
 			no_r = 0;
-			if (strchr(optarg, ':') != 0)
-			{
-				//printf("in :\n");
-				//printf("%s\n",optarg);
-				sscanf(optarg, "%[^:]:%d", remote_address, &remote_port);
-				//printf("%d\n",remote_port);
-			}
-			else
-			{
-				mylog(log_fatal," -r ip:port\n");
-				myexit(1);
-				strcpy(remote_address, "127.0.0.1");
-				sscanf(optarg, "%d", &remote_port);
-			}
+			remote_addr.from_str(optarg);
 			break;
 		case 't':
 			enable_tcp=1;
@@ -1013,7 +983,7 @@ void process_arg(int argc, char *argv[])
 		myexit(-1);
 	}
 }
-int test1()
+int test_only()
 {
 	struct sockaddr_in local_me,remote_dst;	int yes = 1;int ret;
 
@@ -1088,7 +1058,7 @@ int test1()
 	exit(0);
 	return 0;
 }
-int test2()
+int unit_test()
 {
 	address_t::hash_function hash;
 	address_t test;
