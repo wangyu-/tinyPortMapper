@@ -27,7 +27,7 @@ struct fd_manager_t   //conver fd to a uniq 64bit number,avoid fd value conflict
 	fd_manager_t();
 private:
 	u64_t counter;
-	unordered_map<int,fd64_t> fd_to_fd64_mp;  //TODO re-factor dirty codes
+	unordered_map<int,fd64_t> fd_to_fd64_mp;  //TODO combine those maps
 	unordered_map<fd64_t,int> fd64_to_fd_mp;
 	unordered_map<fd64_t,fd_info_t> fd_info_mp;
 	int fd_exist(int fd);
