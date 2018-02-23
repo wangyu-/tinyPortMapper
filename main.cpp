@@ -202,9 +202,9 @@ struct conn_manager_udp_t
 {
 	unordered_map<address_t,udp_pair_t*,address_t::hash_function> adress_to_info;
 
-	list<tcp_pair_t> udp_pair_list;
+	list<udp_pair_t> udp_pair_list;
 	long long last_clear_time;
-	list<tcp_pair_t>::iterator clear_it;
+	list<udp_pair_t>::iterator clear_it;
 
 	conn_manager_udp_t()
 	{
@@ -536,54 +536,70 @@ int event_loop()
 				address_t tmp_addr;
 				tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
 
-				/*
-
-
 				data[data_len] = 0; //for easier debug
 
-				ip_port_t ip_port;
-				ip_port.ip=addr_tmp.sin_addr.s_addr;
-				ip_port.port=ntohs(addr_tmp.sin_port);
-				u64_t u64=ip_port.to_u64();
-				mylog(log_trace, "[udp]received data from udp_listen_fd from [%s], len=%d\n",ip_port.to_s(),data_len);
+				char ip_addr[max_addr_len];
+				tmp_addr.to_str(ip_addr);
 
-				if(!conn_manager.exist_u64(u64))
+				mylog(log_trace, "[udp]received data from udp_listen_fd from [%s], len=%d\n",ip_addr,data_len);
+
+				//unordered_map<address_t,udp_pair_t*,address_t::hash_function>::iterator it;
+				//it=conn_manager_udp.adress_to_info.find(tmp_addr);
+
+				if(conn_manager_udp.adress_to_info.find(tmp_addr)==conn_manager_udp.adress_to_info.end())
 				{
 
-					if(int(conn_manager.fd_to_u64.size())>=max_conn_num)
+					if(int(conn_manager_udp.udp_pair_list.size())>=max_conn_num)
 					{
-						mylog(log_info,"[udp]new connection from [%s],but ignored,bc of max_conv_num reached\n",ip_port.to_s());
+						mylog(log_info,"[udp]new connection from [%s],but ignored,bc of max_conv_num reached\n",ip_addr);
 						continue;
 					}
-					int new_udp_fd;
-					if(create_new_udp(new_udp_fd,remote_address_u32,remote_port)!=0)
+					int new_udp_fd=tmp_addr.new_connected_udp_fd();
+					if(new_udp_fd==-1)
 					{
-						mylog(log_info,"[udp]new connection from [%s] ,but create udp fd failed\n",ip_port.to_s());
+						mylog(log_info,"[udp]new connection from [%s] ,but create udp fd failed\n",ip_addr);
 						continue;
 					}
 					fd64_t fd64=fd_manager.create(new_udp_fd);
 					fd_manager.get_info(fd64);//just create the info
 
 					struct epoll_event ev;
-					mylog(log_trace, "[udp]u64: %lld\n", u64);
+					mylog(log_trace, "[udp]u64: %lld\n", fd64);
 					ev.events = EPOLLIN;
 					ev.data.u64 = fd64;
 
 					ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
 					assert(ret==0);
-					mylog(log_info,"[udp]new connection from [%s],udp fd=%d\n",ip_port.to_s(),new_udp_fd);
-					conn_manager.insert_fd(new_udp_fd,u64);
-				}
-				int new_udp_fd=conn_manager.find_fd_by_u64(u64);
-				conn_manager.update_active_time(new_udp_fd);
-				int ret;
+					mylog(log_info,"[udp]new connection from [%s],udp fd=%d\n",ip_addr,new_udp_fd);
 
-				ret = send(new_udp_fd, data,data_len, 0);
+					conn_manager_udp.udp_pair_list.emplace_back();
+					auto it=conn_manager_udp.udp_pair_list.end();
+					it--;
+					udp_pair_t &udp_pair=*it;
+
+					udp_pair.adress=tmp_addr;
+					udp_pair.fd=new_udp_fd;
+					udp_pair.last_active_time=get_current_time();
+					strcpy(udp_pair.addr_s,ip_addr);
+					udp_pair.it=it;
+
+					fd_manager.get_info(fd64).udp_pair_p=&udp_pair;
+					conn_manager_udp.adress_to_info[tmp_addr]=&udp_pair;
+
+
+				}
+
+				auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+
+				udp_pair_t &udp_pair=*(it->second);
+				int udp_fd= udp_pair.fd;
+				udp_pair.last_active_time=get_current_time();
+
+				int ret;
+				ret = send(udp_fd, data,data_len, 0);
 				if (ret < 0) {
 					mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
 				}
-
-				*/
 
 			}
 			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
@@ -762,9 +778,10 @@ int event_loop()
 				else  //its a udp connection
 				{
 
-					/*
+
 					int udp_fd=fd_manager.to_fd(fd64);
-					assert(conn_manager.exist_fd(udp_fd));
+					udp_pair_t & udp_pair=*fd_manager.get_info(fd64).udp_pair_p;
+					//assert(conn_manager.exist_fd(udp_fd));
 					//if(!conn_manager.exist_fd(udp_fd)) continue;
 
 					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
@@ -789,17 +806,13 @@ int event_loop()
 						continue;
 					}
 
-					assert(conn_manager.exist_fd(udp_fd));
+					udp_pair.last_active_time=get_current_time();
 
-					conn_manager.update_active_time(udp_fd);
-
-					u64_t u64=conn_manager.find_u64_by_fd(udp_fd);
-
-					ret = sendto_u64(local_listen_fd_udp, data,data_len , 0,u64);
+					ret = sendto(local_listen_fd_udp, data,data_len,0, (struct sockaddr *)&udp_pair.adress.inner,udp_pair.adress.get_len());
 					if (ret < 0) {
 						mylog(log_warn, "[udp]sento returned %d,%s\n", ret,strerror(errno));
 						//perror("ret<0");
-					}*/
+					}
 				}
 			}
 			else

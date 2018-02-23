@@ -238,6 +238,7 @@ struct address_t
         return memcmp(&this->inner,&b.inner,sizeof(this->inner));
     }
 
+    int new_connected_udp_fd();
 };
 
 
@@ -247,6 +248,7 @@ struct udp_pair_t
 	int fd;
 	u64_t last_active_time;
 	char addr_s[max_addr_len];
+	list<udp_pair_t>::iterator it;
 	//int not_used=0;
 };
 
@@ -264,6 +266,7 @@ struct fd_info_t
 {
 	int is_tcp=0;
 	tcp_pair_t *tcp_pair_p=0;
+	udp_pair_t *udp_pair_p=0;
 };
 
 

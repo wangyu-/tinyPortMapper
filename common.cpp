@@ -665,3 +665,26 @@ int address_t::from_sockaddr(sockaddr * addr,socklen_t slen)
 	}
 	return 0;
 }
+
+int address_t::new_connected_udp_fd()
+{
+
+	int new_udp_fd;
+	new_udp_fd = socket(get_type(), SOCK_DGRAM, IPPROTO_UDP);
+	if (new_udp_fd < 0) {
+		mylog(log_warn, "create udp_fd error\n");
+		return -1;
+	}
+	setnonblocking(new_udp_fd);
+	set_buf_size(new_udp_fd,socket_buf_size);
+
+	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
+	int ret = connect(new_udp_fd, (struct sockaddr *) &inner, get_len());
+	if (ret != 0) {
+		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
+		close(new_udp_fd);
+		return -1;
+	}
+
+	return new_udp_fd;
+}
