@@ -348,7 +348,7 @@ int event_loop()
 		mylog(log_fatal,"[udp]create listen socket failed\n");
 		myexit(1);
 	}
-	setsockopt(local_listen_fd_udp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	setsockopt(local_listen_fd_udp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));  //this is not necessary.
 	set_buf_size(local_listen_fd_udp,listen_fd_buf_size);
 	setnonblocking(local_listen_fd_udp);
 
@@ -435,25 +435,30 @@ int event_loop()
 					//continue;
 				}
 
-				socklen_t tmp_len = sizeof(sockaddr_in);
-				struct sockaddr_in addr_tmp;
-				memset(&addr_tmp,0,sizeof(addr_tmp));
-				int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &addr_tmp,&tmp_len);
+				socklen_t tmp_len = sizeof(address_t::inner_t);
+				address_t::inner_t tmp_sockaddr_in={0};
+				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
+
+				int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &tmp_sockaddr_in,&tmp_len);
 				if(new_fd<0)
 				{
 					mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,strerror(errno));
 					continue;
 				}
 
+				address_t tmp_addr;
+				tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
+
 				set_buf_size(new_fd,socket_buf_size);
 				setnonblocking(new_fd);
 
-				char ip_port_s[30];
-				sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
+				char ip_addr[max_addr_len];
+				tmp_addr.to_str(ip_addr);
+				//sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
 
 				if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
 				{
-					mylog(log_warn,"[tcp]new connection from [%s],but ignored,bc of max_conn_num reached\n",ip_port_s);
+					mylog(log_warn,"[tcp]new connection from [%s],but ignored,bc of max_conn_num reached\n",ip_addr);
 					close(new_fd);
 					continue;
 				}
@@ -482,7 +487,7 @@ int event_loop()
 				auto it=conn_manager_tcp.tcp_pair_list.end();
 				it--;
 				tcp_pair_t &tcp_pair=*it;
-				strcpy(tcp_pair.ip_port_s,ip_port_s);
+				strcpy(tcp_pair.ip_port_s,ip_addr);
 
 				mylog(log_info,"[tcp]new_connection from [%s],fd1=%d,fd2=%d\n",tcp_pair.ip_port_s,new_fd,new_remote_fd);
 
@@ -1063,10 +1068,10 @@ int unit_test()
 	address_t::hash_function hash;
 	address_t test;
 	test.from_str((char*)"[2001:19f0:7001:1111:00:ff:11:22]:443");
-	printf("%s\n",test.to_str());
+	printf("%s\n",test.get_str());
 	printf("%d\n",hash(test));
 	test.from_str((char*)"44.55.66.77:443");
-	printf("%s\n",test.to_str());
+	printf("%s\n",test.get_str());
 	printf("%d\n",hash(test));
 
 	return 0;

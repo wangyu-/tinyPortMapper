@@ -396,21 +396,6 @@ int set_timer_ms(int epollfd,int &timer_fd,u32_t timer_interval)
 	}
 	return 0;
 }
-void ip_port_t::from_u64(u64_t u64)
-{
-	ip=get_u64_h(u64);
-	port=get_u64_l(u64);
-}
-u64_t ip_port_t::to_u64()
-{
-	return pack_u64(ip,port);
-}
-char * ip_port_t::to_s()
-{
-	static char res[40];
-	sprintf(res,"%s:%d",my_ntoa(ip),port);
-	return res;
-}
 
 int round_up_div(int a,int b)
 {
@@ -613,10 +598,15 @@ int address_t::from_str(char *str)
 	return 0;
 }
 
-
-char* address_t::to_str()
+char * address_t::get_str()
 {
 	static char res[max_addr_len];
+	to_str(res);
+	return res;
+}
+void address_t::to_str(char * s)
+{
+	//static char res[max_addr_len];
 	char ip_addr[max_addr_len];
 	u32_t port;
 	const char * ret=0;
@@ -646,28 +636,28 @@ char* address_t::to_str()
 	ip_addr[max_addr_len-1]=0;
 	if(get_type()==AF_INET6)
 	{
-		sprintf(res,"[%s]:%u\n",ip_addr,(u32_t)port);
+		sprintf(s,"[%s]:%u\n",ip_addr,(u32_t)port);
 	}else
 	{
-		sprintf(res,"%s:%u\n",ip_addr,(u32_t)port);
+		sprintf(s,"%s:%u\n",ip_addr,(u32_t)port);
 	}
 
-	return res;
+	//return res;
 }
 
-int address_t::from_sockaddr(sockaddr & addr,socklen_t slen)
+int address_t::from_sockaddr(sockaddr * addr,socklen_t slen)
 {
-
-	if(addr.sa_family==AF_INET6)
+	memset(&inner,0,sizeof(inner));
+	if(addr->sa_family==AF_INET6)
 	{
 		assert(slen>=sizeof(sockaddr_in6));
-		inner.ipv6= *( (sockaddr_in6*) &addr );
+		inner.ipv6= *( (sockaddr_in6*) addr );
 
 	}
-	else if(addr.sa_family==AF_INET)
+	else if(addr->sa_family==AF_INET)
 	{
 		assert(slen>=sizeof(sockaddr_in));
-		inner.ipv4= *( (sockaddr_in*) &addr );
+		inner.ipv4= *( (sockaddr_in*) addr );
 	}
 	else
 	{

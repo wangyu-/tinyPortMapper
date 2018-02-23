@@ -120,42 +120,6 @@ struct not_copy_able_t
 	}
 };
 
-//enum dest_type{none=0,type_fd64_ip_port,type_fd64,type_fd64_ip_port_conv,type_fd64_conv/*,type_fd*/};
-enum dest_type{none=0,type_fd64_ip_port,type_fd64,type_fd,type_write_fd,type_fd_ip_port/*,type_fd*/};
-
-struct ip_port_t
-{
-	u32_t ip;
-	int port;
-	void from_u64(u64_t u64);
-	u64_t to_u64();
-	char * to_s();
-};
-
-struct fd64_ip_port_t
-{
-	fd64_t fd64;
-	ip_port_t ip_port;
-};
-struct fd_ip_port_t
-{
-	int fd;
-	ip_port_t ip_port;
-};
-union inner_t
-{
-	fd64_t fd64;
-	int fd;
-	fd64_ip_port_t fd64_ip_port;
-	fd_ip_port_t fd_ip_port;
-};
-struct dest_t
-{
-	dest_type type;
-	inner_t inner;
-	u32_t conv;
-	int cook=0;
-};
 
 struct tcp_info_t:not_copy_able_t
 {
@@ -197,7 +161,6 @@ struct tcp_pair_t
 };
 
 
-
 struct address_t
 {
 	struct hash_function
@@ -235,11 +198,12 @@ struct address_t
 		}
 	};
 
-	union  //sockaddr_storage is too huge, we dont use it.
+	union inner_t //sockaddr_storage is too huge, we dont use it.
 	{
 		sockaddr_in ipv4;
 		sockaddr_in6 ipv6;
-	} inner;
+	};
+	inner_t inner;
 
 	address_t()
 	{
@@ -251,9 +215,10 @@ struct address_t
 	}
 	int from_str(char * str);
 
-	int from_sockaddr(sockaddr &,socklen_t);
+	int from_sockaddr(sockaddr *,socklen_t);
 
-	char* to_str();
+	char* get_str();
+	void to_str(char *);
 
 	inline u32_t get_type()
 	{
