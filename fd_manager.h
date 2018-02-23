@@ -26,11 +26,11 @@ struct fd_manager_t   //conver fd to a uniq 64bit number,avoid fd value conflict
 	u64_t create(int fd);
 	fd_manager_t();
 
-	void fd_close(int fd) //tmp solution
+	/*void fd_close(int fd) //tmp solution
 	{
 		assert(fd_to_fd64_mp.find(fd)!=fd_to_fd64_mp.end());
 		fd64_close(fd_to_fd64_mp[fd]);
-	}
+	}*/
 
 private:
 	u64_t counter;

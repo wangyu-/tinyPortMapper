@@ -245,7 +245,7 @@ struct address_t
 struct udp_pair_t
 {
 	address_t adress;
-	int fd;
+	fd64_t fd64;
 	u64_t last_active_time;
 	char addr_s[max_addr_len];
 	list<udp_pair_t>::iterator it;

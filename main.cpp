@@ -38,6 +38,12 @@ struct conn_manager_udp_t
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
+		mylog(log_info,"[tcp]inactive connection [%s] cleared \n",it->addr_s);
+
+		adress_to_info.erase(it->adress);
+		fd_manager.fd64_close(it->fd64);
+		udp_pair_list.erase(it);
+
 		return 0;
 	}
 
@@ -434,7 +440,7 @@ int event_loop()
 					udp_pair_t &udp_pair=*it;
 
 					udp_pair.adress=tmp_addr;
-					udp_pair.fd=new_udp_fd;
+					udp_pair.fd64=fd64;
 					udp_pair.last_active_time=get_current_time();
 					strcpy(udp_pair.addr_s,ip_addr);
 					udp_pair.it=it;
@@ -448,9 +454,8 @@ int event_loop()
 				assert(it!=conn_manager_udp.adress_to_info.end() );
 
 				udp_pair_t &udp_pair=*(it->second);
-				int udp_fd= udp_pair.fd;
+				int udp_fd= fd_manager.to_fd(udp_pair.fd64);
 				udp_pair.last_active_time=get_current_time();
-
 
 
 				int ret;
