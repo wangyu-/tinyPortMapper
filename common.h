@@ -129,11 +129,11 @@ struct tcp_info_t:not_copy_able_t
 	~tcp_info_t()
 	{
 		if(data)
-			delete data;
+			free(data);
 	}
 	void free_memory()
 	{
-		delete data;
+		free(data);
 		data=0;
 		begin=0;
 	}
