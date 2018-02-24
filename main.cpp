@@ -39,7 +39,7 @@ struct conn_manager_udp_t
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
-		mylog(log_info,"[udp]inactive connection {%s} cleared, udp connections=%d\n",it->addr_s,(int)udp_pair_list.size());
+		mylog(log_info,"[udp]inactive connection {%s} cleared, udp connections=%d\n",it->addr_s,(int)(udp_pair_list.size()-1));
 
 		auto tmp_it=adress_to_info.find(it->adress);
 		assert(tmp_it!=adress_to_info.end());
@@ -127,11 +127,11 @@ struct conn_manager_tcp_t
 		{
 			fd_manager.fd64_close( it->local.fd64);
 			fd_manager.fd64_close( it->remote.fd64);
-			mylog(log_info,"[tcp]inactive connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)tcp_pair_list.size());
+			mylog(log_info,"[tcp]inactive connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
 		}
 		else
 		{
-			mylog(log_info,"[tcp]closed connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)tcp_pair_list.size());
+			mylog(log_info,"[tcp]closed connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
 		}
 		tcp_pair_list.erase(it);
 		return 0;
