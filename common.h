@@ -54,6 +54,7 @@
 #include<list>
 #include <memory>
 #include <vector>
+#include <deque>
 //#include <pair>
 using  namespace std;
 
@@ -114,13 +115,13 @@ struct tcp_info_t:not_copy_able_t
 {
 	fd64_t fd64;
 	epoll_event ev;
-	char * data;
-	//char data[max_data_len_tcp+200];//use a larger buffer than udp
+	//char * data;
+	char data[max_data_len_tcp+200];//use a larger buffer than udp
 	char * begin;
 	int data_len;
 	tcp_info_t()
 	{
-		data=(char*)malloc(max_data_len_tcp+200);
+		//data=(char*)malloc(max_data_len_tcp+200);
 
 		begin=data;
 		data_len=0;
@@ -128,15 +129,16 @@ struct tcp_info_t:not_copy_able_t
 	}
 	~tcp_info_t()
 	{
-		if(data)
-			free(data);
+		//if(data)
+			//free(data);
 	}
+	/*
 	void free_memory()
 	{
 		free(data);
 		data=0;
 		begin=0;
-	}
+	}*/
 };
 
 u32_t djb2(unsigned char *str,int len);
@@ -222,10 +224,10 @@ struct tcp_pair_t:not_copy_able_t
 {
 	tcp_info_t local;
 	tcp_info_t remote;
-	u64_t last_active_time;
+	//u64_t last_active_time;
 	list<tcp_pair_t>::iterator it;
 	char addr_s[max_addr_len];
-	int not_used=0;
+	//int not_used=0;
 	tcp_pair_t()
 	{
 		addr_s[0]=0;
