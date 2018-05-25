@@ -22,7 +22,7 @@ address_t local_addr,remote_addr;
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
 
 //template <class key_t>
-struct lru_collector_t
+struct lru_collector_t:not_copy_able_t
 {
 	typedef void* key_t;
 //#define key_t void*
@@ -96,13 +96,14 @@ struct lru_collector_t
 		q.erase(mp[key]);
 		mp.erase(key);
 	}
+	/*
 	void erase_back()
 	{
 		assert(!q.empty());
 		auto it=q.end(); it--;
 		key_t key=it->key;
 		erase(key);
-	}
+	}*/
 };
 
 struct conn_manager_udp_t
@@ -111,24 +112,27 @@ struct conn_manager_udp_t
 
 	list<udp_pair_t> udp_pair_list;
 	long long last_clear_time;
-	list<udp_pair_t>::iterator clear_it;
+	lru_collector_t lru;
+	//list<udp_pair_t>::iterator clear_it;
 
 	conn_manager_udp_t()
 	{
 		last_clear_time=0;
 		adress_to_info.reserve(10007);
-		clear_it=udp_pair_list.begin();
+		//clear_it=udp_pair_list.begin();
 	}
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
 		mylog(log_info,"[udp]inactive connection {%s} cleared, udp connections=%d\n",it->addr_s,(int)(udp_pair_list.size()-1));
+		mylog(log_debug,"[udp] lru.size()=%d\n",(int)lru.size()-1);
 
 		auto tmp_it=adress_to_info.find(it->adress);
 		assert(tmp_it!=adress_to_info.end());
 		adress_to_info.erase(tmp_it);
 
 		fd_manager.fd64_close(it->fd64);
+		lru.erase(&*it);
 		udp_pair_list.erase(it);
 
 		return 0;
@@ -148,7 +152,7 @@ struct conn_manager_udp_t
 		if(disable_conn_clear) return 0;
 
 		int cnt=0;
-		list<udp_pair_t>::iterator it=clear_it,old_it;
+		//list<tcp_pair_t>::iterator it=clear_it,old_it;
 		int size=udp_pair_list.size();
 		int num_to_clean=size/conn_clear_ratio+conn_clear_min;   //clear 2% each time,to avoid latency glitch
 
@@ -157,26 +161,16 @@ struct conn_manager_udp_t
 		for(;;)
 		{
 			if(cnt>=num_to_clean) break;
-			if(udp_pair_list.begin()==udp_pair_list.end()) break;
+			//if(tcp_pair_list.begin()==tcp_pair_list.end()) break;
+			if(lru.empty()) break;
+			lru_collector_t::key_t key;
+			my_time_t ts=lru.peek_back(key);
+			if(current_time- ts < conn_timeout_tcp) break;
 
-			if(it==udp_pair_list.end())
-			{
-				it=udp_pair_list.begin();
-			}
+			erase( ((udp_pair_t *) key)->it  );
 
-			if( current_time - it->last_active_time  >conn_timeout_udp)
-			{
-				old_it=it;
-				it++;
-				erase(old_it);
-			}
-			else
-			{
-				it++;
-			}
 			cnt++;
 		}
-		clear_it=it;
 		return 0;
 	}
 }conn_manager_udp;
@@ -195,15 +189,17 @@ struct conn_manager_tcp_t
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		mylog(log_info,"[tcp]inactive connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
+		mylog(log_debug,"[tcp] lru.size()=%d\n",(int)lru.size()-1);
 		lru.erase(&*it);
 		tcp_pair_list.erase(it);
 		return 0;
 	}
-	int erase_closed(list<tcp_pair_t>::iterator &it)
+	int erase_closed(list<tcp_pair_t>::iterator &it)//just a copy of erase()
 	{
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		mylog(log_info,"[tcp]closed connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
+		mylog(log_debug,"[tcp] lru.size()=%d\n",(int)lru.size()-1);
 		lru.erase(&*it);
 		tcp_pair_list.erase(it);
 		return 0;
@@ -515,13 +511,14 @@ int event_loop()
 					conn_manager_udp.udp_pair_list.emplace_back();
 					auto list_it=conn_manager_udp.udp_pair_list.end();
 					list_it--;
+					conn_manager_udp.lru.new_key(&(*list_it));
 					udp_pair_t &udp_pair=*list_it;
 
 					mylog(log_info,"[udp]new connection from {%s},udp fd=%d,udp connections=%d\n",ip_addr,new_udp_fd,(int)conn_manager_udp.udp_pair_list.size());
 
 					udp_pair.adress=tmp_addr;
 					udp_pair.fd64=fd64;
-					udp_pair.last_active_time=get_current_time();
+					//udp_pair.last_active_time=get_current_time();
 					strcpy(udp_pair.addr_s,ip_addr);
 					udp_pair.it=list_it;
 
@@ -536,7 +533,8 @@ int event_loop()
 
 				udp_pair_t &udp_pair=*(it->second);
 				int udp_fd= fd_manager.to_fd(udp_pair.fd64);
-				udp_pair.last_active_time=get_current_time();
+				conn_manager_udp.lru.update(&udp_pair);
+				//udp_pair.last_active_time=get_current_time();
 
 				int ret;
 				ret = send(udp_fd, data,data_len, 0);
@@ -750,7 +748,8 @@ int event_loop()
 						continue;
 					}
 
-					udp_pair.last_active_time=get_current_time();
+					conn_manager_udp.lru.update(&udp_pair);
+					//udp_pair.last_active_time=get_current_time();
 
 					ret = sendto(local_listen_fd_udp, data,data_len,0, (struct sockaddr *)&udp_pair.adress.inner,udp_pair.adress.get_len());
 					if (ret < 0) {
