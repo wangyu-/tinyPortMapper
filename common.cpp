@@ -191,8 +191,9 @@ void setnonblocking(int sock) {
 
 int set_buf_size(int fd,int socket_buf_size,int force_socket_buf)
 {
-	if(force_socket_buf)
+	if(force_socket_buf && 0)
 	{
+		/*
 		if(setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, &socket_buf_size, sizeof(socket_buf_size))<0)
 		{
 			mylog(log_fatal,"SO_SNDBUFFORCE fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,strerror(errno));
@@ -202,7 +203,7 @@ int set_buf_size(int fd,int socket_buf_size,int force_socket_buf)
 		{
 			mylog(log_fatal,"SO_RCVBUFFORCE fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,strerror(errno));
 			myexit(1);
-		}
+		}*/
 	}
 	else
 	{
@@ -327,7 +328,7 @@ int new_listen_socket(int &fd,u32_t ip,int port)
 
 	return 0;
 }
-
+/*
 int set_timer(int epollfd,int &timer_fd)
 {
 	int ret;
@@ -357,7 +358,7 @@ int set_timer(int epollfd,int &timer_fd)
 		myexit(-1);
 	}
 	return 0;
-}
+}*/
 
 int address_t::from_str(char *str)
 {
