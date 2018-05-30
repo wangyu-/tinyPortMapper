@@ -16,7 +16,7 @@ int about_to_exit=0;
 int socket_buf_size=1024*1024;
 
 
-
+/*
 struct random_fd_t
 {
 	int random_number_fd;
@@ -35,20 +35,22 @@ struct random_fd_t
 	{
 		return random_number_fd;
 	}
-}random_fd;
+}random_fd;*/
 
 u64_t get_current_time()//ms
 {
-	timespec tmp_time;
-	clock_gettime(CLOCK_MONOTONIC, &tmp_time);
-	return ((u64_t)tmp_time.tv_sec)*1000llu+((u64_t)tmp_time.tv_nsec)/(1000*1000llu);
+	//timespec tmp_time;
+	//clock_gettime(CLOCK_MONOTONIC, &tmp_time);
+	//return ((u64_t)tmp_time.tv_sec)*1000llu+((u64_t)tmp_time.tv_nsec)/(1000*1000llu);
+	return (u64_t)(ev_time()*1000);
 }
 
 u64_t get_current_time_us()
 {
-	timespec tmp_time;
-	clock_gettime(CLOCK_MONOTONIC, &tmp_time);
-	return (uint64_t(tmp_time.tv_sec))*1000llu*1000llu+ (uint64_t(tmp_time.tv_nsec))/1000llu;
+	//timespec tmp_time;
+	//clock_gettime(CLOCK_MONOTONIC, &tmp_time);
+	//return (uint64_t(tmp_time.tv_sec))*1000llu*1000llu+ (uint64_t(tmp_time.tv_nsec))/1000llu;
+	return (u64_t)(ev_time()*1000*1000);
 }
 
 u64_t pack_u64(u32_t a,u32_t b)
@@ -114,7 +116,7 @@ char * my_ntoa(u32_t ip)
 	a.s_addr=ip;
 	return inet_ntoa(a);
 }
-
+/*
 u64_t get_true_random_number_64()
 {
 	u64_t ret;
@@ -138,7 +140,9 @@ u32_t get_true_random_number()
 		myexit(-1);
 	}
 	return ret;
-}
+}*/
+
+/*
 u32_t get_true_random_number_nz() //nz for non-zero
 {
 	u32_t ret=0;
@@ -147,7 +151,7 @@ u32_t get_true_random_number_nz() //nz for non-zero
 		ret=get_true_random_number();
 	}
 	return ret;
-}
+}*/
 u64_t ntoh64(u64_t a)
 {
 	if(__BYTE_ORDER == __LITTLE_ENDIAN)
@@ -229,6 +233,7 @@ void  signal_handler(int sig)
     // myexit(0);
 }
 
+/*
 void get_true_random_chars(char * s,int len)
 {
 	int size=read(random_fd.get_fd(),s,len);
@@ -237,8 +242,9 @@ void get_true_random_chars(char * s,int len)
 		printf("get random number failed\n");
 		exit(-1);
 	}
-}
+}*/
 
+/*
 int random_between(u32_t a,u32_t b)
 {
 	if(a>b)
@@ -248,7 +254,7 @@ int random_between(u32_t a,u32_t b)
 	}
 	if(a==b)return a;
 	else return a+get_true_random_number()%(b+1-a);
-}
+}*/
 
 
 int round_up_div(int a,int b)
