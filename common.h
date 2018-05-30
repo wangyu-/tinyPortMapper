@@ -47,6 +47,7 @@
 #include <assert.h>
 #include <linux/if_packet.h>
 #include <linux/if_tun.h>
+#include <my_ev.h>
 
 #include<unordered_map>
 #include<unordered_set>
@@ -78,8 +79,8 @@ const int max_addr_len=100;
 const int max_data_len_udp=65536;
 const int max_data_len_tcp=4096*4;
 
-const u32_t conn_timeout_udp=240000;
-const u32_t conn_timeout_tcp=360000;
+const u32_t conn_timeout_udp=60000;
+const u32_t conn_timeout_tcp=60000;
 
 const int max_conn_num=20000;
 
@@ -115,7 +116,8 @@ struct not_copy_able_t
 struct tcp_info_t:not_copy_able_t
 {
 	fd64_t fd64;
-	epoll_event ev;
+	ev_io ev;
+	//epoll_event ev;
 	//char * data;
 	char data[max_data_len_tcp+200];//use a larger buffer than udp
 	char * begin;
@@ -211,6 +213,8 @@ struct udp_pair_t:not_copy_able_t
 {
 	address_t adress;
 	fd64_t fd64;
+	ev_io ev;
+	int local_listen_fd;
 	//u64_t last_active_time;
 	char addr_s[max_addr_len];
 	list<udp_pair_t>::iterator it;

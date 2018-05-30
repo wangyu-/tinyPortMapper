@@ -124,6 +124,9 @@ struct conn_manager_udp_t
 
 	int erase(list<udp_pair_t>::iterator &it)
 	{
+		struct ev_loop * loop= ev_default_loop (0);
+		ev_io_stop(loop, &it->ev);
+
 		mylog(log_info,"[udp]inactive connection {%s} cleared, udp connections=%d\n",it->addr_s,(int)(udp_pair_list.size()-1));
 		mylog(log_debug,"[udp] lru.size()=%d\n",(int)lru.size()-1);
 
@@ -186,6 +189,10 @@ struct conn_manager_tcp_t
 	}
 	int erase(list<tcp_pair_t>::iterator &it)
 	{
+		struct ev_loop * loop= ev_default_loop (0);
+		ev_io_stop(loop, &it->local.ev);
+		ev_io_stop(loop, &it->remote.ev);
+
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		mylog(log_info,"[tcp]inactive connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
@@ -196,6 +203,10 @@ struct conn_manager_tcp_t
 	}
 	int erase_closed(list<tcp_pair_t>::iterator &it)//just a copy of erase()
 	{
+		struct ev_loop * loop= ev_default_loop (0);
+		ev_io_stop(loop, &it->local.ev);
+		ev_io_stop(loop, &it->remote.ev);
+
 		fd_manager.fd64_close( it->local.fd64);
 		fd_manager.fd64_close( it->remote.fd64);
 		mylog(log_info,"[tcp]closed connection {%s} cleared, tcp connections=%d\n",it->addr_s,(int)(tcp_pair_list.size()-1));
@@ -244,8 +255,484 @@ struct conn_manager_tcp_t
 	}
 }conn_manager_tcp;
 
+void tcp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
+{
+	if((revents&EV_ERROR) !=0)
+	{
+		assert(0==1);
+	}
+	//mylog(log_info,"[tcp]tcp_cb called \n");
+	fd64_t fd64=watcher->u64;
+	if(!fd_manager.exist(fd64))
+	{
+		mylog(log_warn,"[tcp]fd64 no longer exist\n");
+		return;
+	}
+
+
+	assert(fd_manager.exist_info(fd64));
+	fd_info_t & fd_info=fd_manager.get_info(fd64);
+
+	assert(fd_info.is_tcp==1);
+
+	tcp_pair_t &tcp_pair=*(fd_info.tcp_pair_p);
+
+	/*if((revents&EV_ERROR) !=0)
+	{
+		assert(0==1);
+		//mylog(log_info,"[tcp]connection closed, events[idx].events=%x \n",(u32_t) revents);
+		//ev_io_stop(loop, &tcp_pair.local.ev);
+		//ev_io_stop(loop, &tcp_pair.remote.ev);
+		//conn_manager_tcp.erase(tcp_pair.it);
+		return;
+	}*/
+
+	tcp_info_t *my_info_p,*other_info_p;
+	if(fd64==tcp_pair.local.fd64)
+	{
+		mylog(log_trace,"[tcp]fd64==tcp_pair.local.fd64\n");
+		my_info_p=&tcp_pair.local;
+		other_info_p=&tcp_pair.remote;
+	}
+	else if(fd64==tcp_pair.remote.fd64)
+	{
+		mylog(log_trace,"[tcp]fd64==tcp_pair.remote.fd64\n");
+		my_info_p=&tcp_pair.remote;
+		other_info_p=&tcp_pair.local;
+	}
+	else
+	{
+		assert(0==1);
+	}
+	tcp_info_t &my_info=*my_info_p;
+	tcp_info_t &other_info=*other_info_p;
+
+	int my_fd=fd_manager.to_fd(my_info.fd64);
+	int other_fd=fd_manager.to_fd(other_info.fd64);
+
+	assert(watcher->fd==my_fd);
+
+	//zdmylog(log_info,"[tcp]my_fd=%d,other_fd=%d \n",my_fd,other_fd);
+
+	if( (revents & EV_READ) !=0  )
+	{
+		mylog(log_trace,"[tcp]events[idx].events & EPOLLIN !=0 \n");
+		if((my_info.ev.events&EV_READ) ==0)
+		{
+			mylog(log_debug,"[tcp]out of date event, my_info.ev.events&EPOLLIN) ==0 \n");
+			return;
+		}
+		assert(my_info.data_len==0);
+		int recv_len=recv(my_fd,my_info.data,max_data_len_tcp,0);//use a larger buffer than udp
+		mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
+		if(recv_len==0)
+		{
+			mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of EOF\n",recv_len,tcp_pair.addr_s);
+			conn_manager_tcp.erase_closed(tcp_pair.it);
+			return;
+		}
+		if(recv_len<0)
+		{
+			mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of %s,fd=%d\n",recv_len,tcp_pair.addr_s,strerror(errno),my_fd);
+			conn_manager_tcp.erase_closed(tcp_pair.it);
+			return;
+		}
+		conn_manager_tcp.lru.update(&(*tcp_pair.it));
+		//tcp_pair.last_active_time=get_current_time();
+
+		my_info.data_len=recv_len;
+		my_info.begin=my_info.data;
+
+		assert((other_info.ev.events & EV_WRITE)==0);
+
+		int send_len=send(other_fd,my_info.begin,my_info.data_len,MSG_NOSIGNAL);
+
+		if(send_len<=0)
+		{
+			//NOP
+		}
+		else
+		{
+			my_info.data_len-=send_len;
+			my_info.begin+=send_len;
+		}
+
+		if(my_info.data_len!=0)
+		{
+			//epoll_event ev;
+
+			//ev=other_info.ev;
+			//ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
+			//assert(ret==0);
+			ev_io_stop(loop, &other_info.ev);
+			other_info.ev.events|=EV_WRITE;
+			ev_io_init (&other_info.ev, tcp_cb, other_fd, other_info.ev.events);
+			ev_io_start(loop, &other_info.ev);
+
+
+			//ev=my_info.ev;
+			//ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
+			//assert(ret==0);
+			ev_io_stop(loop, &my_info.ev);
+			my_info.ev.events&=~EV_READ;
+			ev_io_init (&my_info.ev, tcp_cb, my_fd, my_info.ev.events);
+			ev_io_start(loop, &my_info.ev);
+
+		}
+
+	}
+	else if( (revents & EV_WRITE) !=0)
+	{
+		mylog(log_trace,"[tcp]events[idx].events & EPOLLOUT !=0\n");
+
+		if( (my_info.ev.events&EV_WRITE) ==0)
+		{
+			mylog(log_debug,"[tcp]out of date event, my_info.ev.events&EPOLLOUT) ==0 \n");
+			return;
+		}
+
+		assert(other_info.data_len!=0);
+		int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
+		if(send_len==0)
+		{
+			mylog(log_warn,"[tcp]send_len=%d,connection {%s} closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
+			conn_manager_tcp.erase_closed(tcp_pair.it);
+			return;
+		}
+		if(send_len<0)
+		{
+			mylog(log_info,"[tcp]send_len=%d,connection {%s} closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
+			conn_manager_tcp.erase_closed(tcp_pair.it);
+			return;
+		}
+		conn_manager_tcp.lru.update(&(*tcp_pair.it));
+
+		//tcp_pair.last_active_time=get_current_time();
+
+		mylog(log_trace,"[tcp]fd=%d send len=%d\n",my_fd,send_len);
+		other_info.data_len-=send_len;
+		other_info.begin+=send_len;
+
+		if(other_info.data_len==0)
+		{
+
+			//ev=my_info.ev;
+			//ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
+			//assert(ret==0);
+			ev_io_stop(loop, &my_info.ev);
+			my_info.ev.events&=~EV_WRITE;
+			ev_io_init (&my_info.ev, tcp_cb, my_fd, my_info.ev.events);
+			ev_io_start(loop, &my_info.ev);
+
+			assert((other_info.ev.events & EV_READ)==0);
+
+
+
+			//ev=other_info.ev;
+			//ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
+			//assert(ret==0);
+			ev_io_stop(loop, &other_info.ev);
+			other_info.ev.events|=EV_READ;
+			ev_io_init (&other_info.ev, tcp_cb, other_fd, other_info.ev.events);
+			ev_io_start(loop, &other_info.ev);
+		}
+		else
+		{
+			//keep waitting for EPOLLOUT;
+		}
+	}
+	else
+	{
+		mylog(log_fatal,"[tcp]got unexpected event,events[idx].events=%x\n",(u32_t)revents);
+		myexit(-1);
+	}
+}
+void tcp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
+{
+	int ret;
+	int local_listen_fd_tcp=watcher->fd;
+	if((revents&EV_ERROR) !=0)
+	{
+		assert(0==1);
+		return ;
+	}
+	/*if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
+	{
+		mylog(log_error,"[tcp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
+		//if there is an error, we will eventually get it at accept()
+	}*/
+
+	socklen_t tmp_len = sizeof(address_t::storage_t);
+	address_t::storage_t tmp_sockaddr_in={0};
+	memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
+
+	int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &tmp_sockaddr_in,&tmp_len);
+	if(new_fd<0)
+	{
+		mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,strerror(errno));
+		//continue;
+		return ;
+	}
+
+	address_t tmp_addr;
+	tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
+
+	set_buf_size(new_fd,socket_buf_size);
+	setnonblocking(new_fd);
+
+	char ip_addr[max_addr_len];
+	tmp_addr.to_str(ip_addr);
+	//sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
+
+	if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
+	{
+		mylog(log_warn,"[tcp]new connection from {%s},but ignored,bc of max_conn_num reached\n",ip_addr);
+		close(new_fd);
+		return ;
+		//continue;
+	}
+
+
+	int new_remote_fd = socket(remote_addr.get_type(), SOCK_STREAM, 0);
+	if(new_remote_fd<0)
+	{
+		mylog(log_fatal,"[tcp]create new_remote_fd failed \n");
+		myexit(1);
+	}
+	set_buf_size(new_remote_fd,socket_buf_size);
+	setnonblocking(new_remote_fd);
+
+	ret=connect(new_remote_fd,(struct sockaddr*) &remote_addr.inner,remote_addr.get_len());
+	if(ret!=0)
+	{
+		mylog(log_debug,"[tcp]connect returned %d,errno=%s\n",ret,strerror(errno));
+	}
+	else
+	{
+		mylog(log_debug,"[tcp]connect returned 0\n");
+	}
+
+	conn_manager_tcp.tcp_pair_list.emplace_back();
+	auto it=conn_manager_tcp.tcp_pair_list.end();
+	it--;
+
+	conn_manager_tcp.lru.new_key(&(*it));
+
+	tcp_pair_t &tcp_pair=*it;
+	strcpy(tcp_pair.addr_s,ip_addr);
+
+	mylog(log_info,"[tcp]new_connection from {%s},fd1=%d,fd2=%d,tcp connections=%d\n",tcp_pair.addr_s,new_fd,new_remote_fd,(int)conn_manager_tcp.tcp_pair_list.size());
+
+	tcp_pair.local.fd64=fd_manager.create(new_fd);
+	fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
+	fd_manager.get_info(tcp_pair.local.fd64).is_tcp=1;
+	//tcp_pair.local.ev.events=EV_READ;
+	tcp_pair.local.ev.u64=tcp_pair.local.fd64;
+
+	tcp_pair.remote.fd64=fd_manager.create(new_remote_fd);
+	fd_manager.get_info(tcp_pair.remote.fd64).tcp_pair_p= &tcp_pair;
+	fd_manager.get_info(tcp_pair.remote.fd64).is_tcp=1;
+	//tcp_pair.remote.ev.events=EV_READ;
+	tcp_pair.remote.ev.u64=tcp_pair.remote.fd64;
+
+	conn_manager_tcp.lru.update(&(*it));
+	//tcp_pair.last_active_time=get_current_time();
+	tcp_pair.it=it;
+
+	//epoll_event ev;
+
+	//ev=tcp_pair.local.ev;
+	//ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_fd, &ev);
+	//assert(ret==0);
+	ev_io_init (&tcp_pair.local.ev, tcp_cb, new_fd, EV_READ);
+	ev_io_start(loop, &tcp_pair.local.ev);
+
+	//ev=tcp_pair.remote.ev;
+	//ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_remote_fd, &ev);
+	//assert(ret==0);
+
+	ev_io_init (&tcp_pair.remote.ev, tcp_cb, new_remote_fd, EV_READ);
+	ev_io_start(loop, &tcp_pair.remote.ev);
+}
+
+void clear_timer_cb(struct ev_loop *loop, struct ev_timer* timer, int revents)
+{
+	conn_manager_tcp.clear_inactive();
+	conn_manager_udp.clear_inactive();
+}
+void udp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
+{
+	if((revents&EV_ERROR) !=0)
+	{
+		assert(0==1);
+	}
+	int ret;
+	fd64_t fd64=watcher->u64;
+	if(!fd_manager.exist(fd64))
+	{
+		mylog(log_warn,"[udp]fd64 no longer exist\n");
+		return;
+	}
+	assert(fd_manager.exist_info(fd64));
+	fd_info_t & fd_info=fd_manager.get_info(fd64);
+	assert(fd_info.is_tcp==0);
+
+	int udp_fd=fd_manager.to_fd(fd64);
+	udp_pair_t & udp_pair=*fd_manager.get_info(fd64).udp_pair_p;
+	//assert(conn_manager.exist_fd(udp_fd));
+	//if(!conn_manager.exist_fd(udp_fd)) continue;
+
+	/*
+	if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
+	{
+		mylog(log_warn,"[udp]EPOLLERR or EPOLLHUP from udp_remote_fd events[idx].events=%x \n",events[idx].events);
+
+	}*/
+
+	char data[max_data_len_udp+200];
+	int data_len =recv(udp_fd,data,max_data_len_udp+1,0);
+	mylog(log_trace, "[udp]received data from udp fd %d, len=%d\n", udp_fd,data_len);
+
+	if(data_len==max_data_len_udp+1)
+	{
+		mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",udp_pair.addr_s,max_data_len_udp);
+		return;
+	}
+
+	if(data_len<0)
+	{
+		mylog(log_warn,"[udp]recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
+		return;
+	}
+
+	conn_manager_udp.lru.update(&udp_pair);
+	//udp_pair.last_active_time=get_current_time();
+	int local_listen_fd_udp=udp_pair.local_listen_fd;
+	ret = sendto(local_listen_fd_udp, data,data_len,0, (struct sockaddr *)&udp_pair.adress.inner,udp_pair.adress.get_len());
+	if (ret < 0) {
+		mylog(log_warn, "[udp]sento returned %d,%s\n", ret,strerror(errno));
+		//perror("ret<0");
+	}
+}
+void udp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
+{
+
+	if((revents&EV_ERROR) !=0)
+	{
+		assert(0==1);
+		return ;
+	}
+	/*if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
+	{
+		mylog(log_error,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
+		//if there is an error, we will eventually get it at recvfrom();
+	}*/
+
+	char data[max_data_len_udp+200];
+	int data_len;
+
+	socklen_t tmp_len = sizeof(address_t::storage_t);
+	address_t::storage_t tmp_sockaddr_in={0};
+	memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
+
+	int local_listen_fd_udp=watcher->fd;
+
+	if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp+1, 0,
+			(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
+	{
+		mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
+		//myexit(1);
+		return;
+	}
+
+	address_t tmp_addr;
+	tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
+
+	data[data_len] = 0; //for easier debug
+
+	char ip_addr[max_addr_len];
+	tmp_addr.to_str(ip_addr);
+
+	mylog(log_trace, "[udp]received data from udp_listen_fd from {%s}, len=%d\n",ip_addr,data_len);
+
+	if(data_len==max_data_len_udp+1)
+	{
+		mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",ip_addr,max_data_len_udp);
+		return;
+	}
+
+	auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+	if(it==conn_manager_udp.adress_to_info.end())
+	{
+
+		if(int(conn_manager_udp.udp_pair_list.size())>=max_conn_num)
+		{
+			mylog(log_info,"[udp]new connection from {%s},but ignored,bc of max_conv_num reached\n",ip_addr);
+			return;
+		}
+		int new_udp_fd=remote_addr.new_connected_udp_fd();
+		if(new_udp_fd==-1)
+		{
+			mylog(log_info,"[udp]new connection from {%s} ,but create udp fd failed\n",ip_addr);
+			return;
+		}
+		fd64_t fd64=fd_manager.create(new_udp_fd);
+		fd_manager.get_info(fd64);//just create the info
+
+		//struct epoll_event ev;
+		mylog(log_trace, "[udp]u64: %lld\n", fd64);
+		//ev.events = EPOLLIN;
+		//ev.data.u64 = fd64;
+
+		//ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
+		//assert(ret==0);
+
+
+		conn_manager_udp.udp_pair_list.emplace_back();
+		auto list_it=conn_manager_udp.udp_pair_list.end();
+		list_it--;
+		conn_manager_udp.lru.new_key(&(*list_it));
+		udp_pair_t &udp_pair=*list_it;
+
+		udp_pair.ev.u64=fd64;
+		ev_io_init (&udp_pair.ev, udp_cb, new_udp_fd, EV_READ);
+		ev_io_start(loop, &udp_pair.ev);
+
+
+		mylog(log_info,"[udp]new connection from {%s},udp fd=%d,udp connections=%d\n",ip_addr,new_udp_fd,(int)conn_manager_udp.udp_pair_list.size());
+
+		udp_pair.adress=tmp_addr;
+		udp_pair.fd64=fd64;
+		//udp_pair.last_active_time=get_current_time();
+		strcpy(udp_pair.addr_s,ip_addr);
+		udp_pair.it=list_it;
+		udp_pair.local_listen_fd=local_listen_fd_udp;
+
+		fd_manager.get_info(fd64).udp_pair_p=&udp_pair;
+		conn_manager_udp.adress_to_info[tmp_addr]=&udp_pair;
+		it=conn_manager_udp.adress_to_info.find(tmp_addr);
+		//it=adress_to_info.
+	}
+
+	//auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
+	assert(it!=conn_manager_udp.adress_to_info.end() );
+
+	udp_pair_t &udp_pair=*(it->second);
+	int udp_fd= fd_manager.to_fd(udp_pair.fd64);
+	conn_manager_udp.lru.update(&udp_pair);
+	//udp_pair.last_active_time=get_current_time();
+
+	int ret;
+	ret = send(udp_fd, data,data_len, 0);
+	if (ret < 0) {
+		mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
+	}
+
+}
 int event_loop()
 {
+
+
 	int local_listen_fd_tcp=-1;
 	int local_listen_fd_udp=-1;
 
@@ -263,6 +750,8 @@ int event_loop()
 	setnonblocking(local_listen_fd_tcp);
 
 
+
+
 	local_listen_fd_udp = socket(local_addr.get_type(), SOCK_DGRAM, IPPROTO_UDP);
 	if(local_listen_fd_udp<0)
 	{
@@ -274,15 +763,20 @@ int event_loop()
 	setnonblocking(local_listen_fd_udp);
 
 
+	//int epollfd = epoll_create1(0);
+	//const int max_events = 4096;
+	//struct epoll_event ev, events[max_events];
+	//if (epollfd < 0)
+	//{
+	//	mylog(log_fatal,"epoll created return %d\n", epollfd);
+	//	myexit(-1);
+	//}
 
-	int epollfd = epoll_create1(0);
-	const int max_events = 4096;
-	struct epoll_event ev, events[max_events];
-	if (epollfd < 0)
-	{
-		mylog(log_fatal,"epoll created return %d\n", epollfd);
-		myexit(-1);
-	}
+	struct ev_loop * default_loop= ev_default_loop(0);
+	assert(default_loop != NULL);
+
+	struct ev_io tcp_accept_watcher;
+
 	if(enable_tcp)
 	{
 		if (bind(local_listen_fd_tcp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) !=0)
@@ -297,15 +791,19 @@ int event_loop()
 			myexit(1);
 	    }
 
-		ev.events = EPOLLIN;
-		ev.data.u64 = local_listen_fd_tcp;
-		int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_tcp, &ev);
-		if(ret!=0)
-		{
-			mylog(log_fatal,"[tcp]epoll EPOLL_CTL_ADD return %d\n", epollfd);
-			myexit(-1);
-		}
+		//ev.events = EPOLLIN;
+		//ev.data.u64 = local_listen_fd_tcp;
+		//int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_tcp, &ev);
+		//if(ret!=0)
+		//{
+		//	mylog(log_fatal,"[tcp]epoll EPOLL_CTL_ADD return %d\n", epollfd);
+		//	myexit(-1);
+		//}
+	    ev_io_init(&tcp_accept_watcher, tcp_accept_cb, local_listen_fd_tcp, EV_READ);
+	    ev_io_start(default_loop, &tcp_accept_watcher);
 	}
+
+	struct ev_io udp_accept_watcher;
 
 	if(enable_udp)
 	{
@@ -315,457 +813,32 @@ int event_loop()
 			myexit(1);
 		}
 
-		ev.events = EPOLLIN;
-		ev.data.u64 = local_listen_fd_udp;
-		int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_udp, &ev);
-		if(ret!=0)
-		{
-			mylog(log_fatal,"[udp]epoll created return %d\n", epollfd);
-			myexit(-1);
-		}
+		//ev.events = EPOLLIN;
+		//ev.data.u64 = local_listen_fd_udp;
+		//int ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, local_listen_fd_udp, &ev);
+		//if(ret!=0)
+		//{
+		//	mylog(log_fatal,"[udp]epoll created return %d\n", epollfd);
+		//	myexit(-1);
+		//}
+
+	    ev_io_init(&udp_accept_watcher, udp_accept_cb, local_listen_fd_udp, EV_READ);
+	    ev_io_start(default_loop, &udp_accept_watcher);
 	}
 
-	int clear_timer_fd=-1;
+	//int clear_timer_fd=-1;
+	struct ev_timer clear_timer;
+
+	ev_timer_init(&clear_timer, clear_timer_cb, 0, timer_interval/1000.0);
+	ev_timer_start(default_loop, &clear_timer);
+
+	ev_run(default_loop, 0);
+	/*
 	set_timer(epollfd,clear_timer_fd);
 
 	//u32_t roller=0;
-	for (;;)
-	{
-		int nfds = epoll_wait(epollfd, events, max_events, 180 * 1000); //3mins
-		if (nfds < 0)
-		{
-			if(errno==EINTR  )
-			{
-				mylog(log_info,"epoll interrupted by signal,continue\n");
-				//myexit(0);
-			}
-			else
-			{
-				mylog(log_fatal,"epoll_wait return %d,%s\n", nfds,strerror(errno));
-				myexit(-1);
-			}
-		}
-		int idx;
-		for (idx = 0; idx < nfds; idx++)
-		{
-			if(events[idx].data.u64==(u64_t)local_listen_fd_tcp)
-			{
-				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
-				{
-					mylog(log_error,"[tcp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					//if there is an error, we will eventually get it at accept()
-				}
 
-				socklen_t tmp_len = sizeof(address_t::storage_t);
-				address_t::storage_t tmp_sockaddr_in={0};
-				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
-
-				int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &tmp_sockaddr_in,&tmp_len);
-				if(new_fd<0)
-				{
-					mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,strerror(errno));
-					continue;
-				}
-
-				address_t tmp_addr;
-				tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
-
-				set_buf_size(new_fd,socket_buf_size);
-				setnonblocking(new_fd);
-
-				char ip_addr[max_addr_len];
-				tmp_addr.to_str(ip_addr);
-				//sprintf(ip_port_s,"%s:%d",my_ntoa(addr_tmp.sin_addr.s_addr),addr_tmp.sin_port);
-
-				if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
-				{
-					mylog(log_warn,"[tcp]new connection from {%s},but ignored,bc of max_conn_num reached\n",ip_addr);
-					close(new_fd);
-					continue;
-				}
-
-
-				int new_remote_fd = socket(remote_addr.get_type(), SOCK_STREAM, 0);
-				if(new_remote_fd<0)
-				{
-					mylog(log_fatal,"[tcp]create new_remote_fd failed \n");
-					myexit(1);
-				}
-				set_buf_size(new_remote_fd,socket_buf_size);
-				setnonblocking(new_remote_fd);
-
-				ret=connect(new_remote_fd,(struct sockaddr*) &remote_addr.inner,remote_addr.get_len());
-				if(ret!=0)
-				{
-					mylog(log_debug,"[tcp]connect returned %d,errno=%s\n",ret,strerror(errno));
-				}
-				else
-				{
-					mylog(log_debug,"[tcp]connect returned 0\n");
-				}
-
-				conn_manager_tcp.tcp_pair_list.emplace_back();
-				auto it=conn_manager_tcp.tcp_pair_list.end();
-				it--;
-
-				conn_manager_tcp.lru.new_key(&(*it));
-
-				tcp_pair_t &tcp_pair=*it;
-				strcpy(tcp_pair.addr_s,ip_addr);
-
-				mylog(log_info,"[tcp]new_connection from {%s},fd1=%d,fd2=%d,tcp connections=%d\n",tcp_pair.addr_s,new_fd,new_remote_fd,(int)conn_manager_tcp.tcp_pair_list.size());
-
-				tcp_pair.local.fd64=fd_manager.create(new_fd);
-				fd_manager.get_info(tcp_pair.local.fd64).tcp_pair_p= &tcp_pair;
-				fd_manager.get_info(tcp_pair.local.fd64).is_tcp=1;
-				tcp_pair.local.ev.events=EPOLLIN;
-				tcp_pair.local.ev.data.u64=tcp_pair.local.fd64;
-
-				tcp_pair.remote.fd64=fd_manager.create(new_remote_fd);
-				fd_manager.get_info(tcp_pair.remote.fd64).tcp_pair_p= &tcp_pair;
-				fd_manager.get_info(tcp_pair.remote.fd64).is_tcp=1;
-				tcp_pair.remote.ev.events=EPOLLIN;
-				tcp_pair.remote.ev.data.u64=tcp_pair.remote.fd64;
-
-				conn_manager_tcp.lru.update(&(*it));
-				//tcp_pair.last_active_time=get_current_time();
-				tcp_pair.it=it;
-
-				epoll_event ev;
-
-				ev=tcp_pair.local.ev;
-				ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_fd, &ev);
-				assert(ret==0);
-
-				ev=tcp_pair.remote.ev;
-				ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_remote_fd, &ev);
-				assert(ret==0);
-			}
-			else if (events[idx].data.u64 == (u64_t)local_listen_fd_udp) //data income from local end
-			{
-
-				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
-				{
-					mylog(log_error,"[udp]EPOLLERR or EPOLLHUP from listen_fd events[idx].events=%x \n",events[idx].events);
-					//if there is an error, we will eventually get it at recvfrom();
-				}
-
-				char data[max_data_len_udp+200];
-				int data_len;
-
-				socklen_t tmp_len = sizeof(address_t::storage_t);
-				address_t::storage_t tmp_sockaddr_in={0};
-				memset(&tmp_sockaddr_in,0,sizeof(tmp_sockaddr_in));
-
-				if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp+1, 0,
-						(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
-				{
-					mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
-					//myexit(1);
-					continue;
-				}
-
-				address_t tmp_addr;
-				tmp_addr.from_sockaddr((sockaddr*)&tmp_sockaddr_in,tmp_len);
-
-				data[data_len] = 0; //for easier debug
-
-				char ip_addr[max_addr_len];
-				tmp_addr.to_str(ip_addr);
-
-				mylog(log_trace, "[udp]received data from udp_listen_fd from {%s}, len=%d\n",ip_addr,data_len);
-
-				if(data_len==max_data_len_udp+1)
-				{
-					mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",ip_addr,max_data_len_udp);
-					continue;
-				}
-
-				auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
-				if(it==conn_manager_udp.adress_to_info.end())
-				{
-
-					if(int(conn_manager_udp.udp_pair_list.size())>=max_conn_num)
-					{
-						mylog(log_info,"[udp]new connection from {%s},but ignored,bc of max_conv_num reached\n",ip_addr);
-						continue;
-					}
-					int new_udp_fd=remote_addr.new_connected_udp_fd();
-					if(new_udp_fd==-1)
-					{
-						mylog(log_info,"[udp]new connection from {%s} ,but create udp fd failed\n",ip_addr);
-						continue;
-					}
-					fd64_t fd64=fd_manager.create(new_udp_fd);
-					fd_manager.get_info(fd64);//just create the info
-
-					struct epoll_event ev;
-					mylog(log_trace, "[udp]u64: %lld\n", fd64);
-					ev.events = EPOLLIN;
-					ev.data.u64 = fd64;
-
-					ret = epoll_ctl(epollfd, EPOLL_CTL_ADD, new_udp_fd, &ev);
-					assert(ret==0);
-
-
-					conn_manager_udp.udp_pair_list.emplace_back();
-					auto list_it=conn_manager_udp.udp_pair_list.end();
-					list_it--;
-					conn_manager_udp.lru.new_key(&(*list_it));
-					udp_pair_t &udp_pair=*list_it;
-
-					mylog(log_info,"[udp]new connection from {%s},udp fd=%d,udp connections=%d\n",ip_addr,new_udp_fd,(int)conn_manager_udp.udp_pair_list.size());
-
-					udp_pair.adress=tmp_addr;
-					udp_pair.fd64=fd64;
-					//udp_pair.last_active_time=get_current_time();
-					strcpy(udp_pair.addr_s,ip_addr);
-					udp_pair.it=list_it;
-
-					fd_manager.get_info(fd64).udp_pair_p=&udp_pair;
-					conn_manager_udp.adress_to_info[tmp_addr]=&udp_pair;
-					it=conn_manager_udp.adress_to_info.find(tmp_addr);
-					//it=adress_to_info.
-				}
-
-				//auto it=conn_manager_udp.adress_to_info.find(tmp_addr);
-				assert(it!=conn_manager_udp.adress_to_info.end() );
-
-				udp_pair_t &udp_pair=*(it->second);
-				int udp_fd= fd_manager.to_fd(udp_pair.fd64);
-				conn_manager_udp.lru.update(&udp_pair);
-				//udp_pair.last_active_time=get_current_time();
-
-				int ret;
-				ret = send(udp_fd, data,data_len, 0);
-				if (ret < 0) {
-					mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
-				}
-
-			}
-			else if(events[idx].data.u64 == (u64_t)clear_timer_fd)
-			{
-				if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
-				{
-					mylog(log_warn,"EPOLLERR or EPOLLHUP from clear_timer_fd events[idx].events=%x \n",events[idx].events);
-					//continue;
-				}
-				u64_t value;
-				read(clear_timer_fd, &value, 8);
-
-				mylog(log_trace, "timer!\n");
-				conn_manager_udp.clear_inactive();
-				conn_manager_tcp.clear_inactive();
-
-			}
-			else if(events[idx].data.u64 > u32_t(-1))
-			{
-				fd64_t fd64=events[idx].data.u64;
-				if(!fd_manager.exist(fd64))
-				{
-					mylog(log_trace,"[tcp]fd64 no longer exist\n");
-					continue;
-				}
-				assert(fd_manager.exist_info(fd64));
-				fd_info_t & fd_info=fd_manager.get_info(fd64);
-				if(fd_info.is_tcp==1)
-				{
-					tcp_pair_t &tcp_pair=*(fd_info.tcp_pair_p);
-
-					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
-					{
-						mylog(log_info,"[tcp]connection closed, events[idx].events=%x \n",events[idx].events);
-						conn_manager_tcp.erase(tcp_pair.it);
-						continue;
-					}
-
-					tcp_info_t *my_info_p,*other_info_p;
-					if(fd64==tcp_pair.local.fd64)
-					{
-						mylog(log_trace,"[tcp]fd64==tcp_pair.local.fd64\n");
-						my_info_p=&tcp_pair.local;
-						other_info_p=&tcp_pair.remote;
-					}
-					else if(fd64==tcp_pair.remote.fd64)
-					{
-						mylog(log_trace,"[tcp]fd64==tcp_pair.remote.fd64\n");
-						my_info_p=&tcp_pair.remote;
-						other_info_p=&tcp_pair.local;
-					}
-					else
-					{
-						assert(0==1);
-					}
-					tcp_info_t &my_info=*my_info_p;
-					tcp_info_t &other_info=*other_info_p;
-
-					int my_fd=fd_manager.to_fd(my_info.fd64);
-					int other_fd=fd_manager.to_fd(other_info.fd64);
-
-
-					if( (events[idx].events & EPOLLIN) !=0  )
-					{
-						mylog(log_trace,"[tcp]events[idx].events & EPOLLIN !=0 ,idx =%d\n",idx);
-						if((my_info.ev.events&EPOLLIN) ==0)
-						{
-							mylog(log_debug,"[tcp]out of date event, my_info.ev.events&EPOLLIN) ==0 \n");
-							continue;
-						}
-						assert(my_info.data_len==0);
-						int recv_len=recv(my_fd,my_info.data,max_data_len_tcp,0);//use a larger buffer than udp
-						mylog(log_trace,"fd=%d,recv_len=%d\n",my_fd,recv_len);
-						if(recv_len==0)
-						{
-							mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of EOF\n",recv_len,tcp_pair.addr_s);
-							conn_manager_tcp.erase_closed(tcp_pair.it);
-							continue;
-						}
-						if(recv_len<0)
-						{
-							mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of %s\n",recv_len,tcp_pair.addr_s,strerror(errno));
-							conn_manager_tcp.erase_closed(tcp_pair.it);
-							continue;
-						}
-						conn_manager_tcp.lru.update(&(*tcp_pair.it));
-						//tcp_pair.last_active_time=get_current_time();
-
-						my_info.data_len=recv_len;
-						my_info.begin=my_info.data;
-
-						assert((other_info.ev.events & EPOLLOUT)==0);
-
-						int send_len=send(other_fd,my_info.begin,my_info.data_len,MSG_NOSIGNAL);
-
-						if(send_len<=0)
-						{
-							//NOP
-						}
-						else
-						{
-							my_info.data_len-=send_len;
-							my_info.begin+=send_len;
-						}
-
-						if(my_info.data_len!=0)
-						{
-							epoll_event ev;
-							other_info.ev.events|=EPOLLOUT;
-							ev=other_info.ev;
-							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
-							assert(ret==0);
-
-							my_info.ev.events&=~EPOLLIN;
-							ev=my_info.ev;
-							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
-							assert(ret==0);
-						}
-
-					}
-					else if( (events[idx].events & EPOLLOUT) !=0)
-					{
-						mylog(log_trace,"[tcp]events[idx].events & EPOLLOUT !=0 ,idx =%d\n",idx);
-
-						if( (my_info.ev.events&EPOLLOUT) ==0)
-						{
-							mylog(log_debug,"[tcp]out of date event, my_info.ev.events&EPOLLOUT) ==0 \n");
-							continue;
-						}
-
-						assert(other_info.data_len!=0);
-						int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
-						if(send_len==0)
-						{
-							mylog(log_warn,"[tcp]send_len=%d,connection {%s} closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
-							conn_manager_tcp.erase(tcp_pair.it);
-							continue;
-						}
-						if(send_len<0)
-						{
-							mylog(log_info,"[tcp]send_len=%d,connection {%s} closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
-							conn_manager_tcp.erase(tcp_pair.it);
-							continue;
-						}
-						conn_manager_tcp.lru.update(&(*tcp_pair.it));
-
-						//tcp_pair.last_active_time=get_current_time();
-
-						mylog(log_trace,"[tcp]fd=%d send len=%d\n",my_fd,send_len);
-						other_info.data_len-=send_len;
-						other_info.begin+=send_len;
-
-						if(other_info.data_len==0)
-						{
-							my_info.ev.events&=~EPOLLOUT;
-							ev=my_info.ev;
-							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, my_fd, &ev);
-							assert(ret==0);
-
-							assert((other_info.ev.events & EPOLLIN)==0);
-							other_info.ev.events|=EPOLLIN;
-							ev=other_info.ev;
-							ret = epoll_ctl(epollfd, EPOLL_CTL_MOD, other_fd, &ev);
-							assert(ret==0);
-						}
-						else
-						{
-							//keep waitting for EPOLLOUT;
-						}
-					}
-					else
-					{
-						mylog(log_fatal,"[tcp]got unexpected event,events[idx].events=%x\n",events[idx].events);
-						myexit(-1);
-					}
-				}
-				else  //its a udp connection
-				{
-
-
-					int udp_fd=fd_manager.to_fd(fd64);
-					udp_pair_t & udp_pair=*fd_manager.get_info(fd64).udp_pair_p;
-					//assert(conn_manager.exist_fd(udp_fd));
-					//if(!conn_manager.exist_fd(udp_fd)) continue;
-
-					if((events[idx].events & EPOLLERR) !=0 ||(events[idx].events & EPOLLHUP) !=0)
-					{
-						mylog(log_warn,"[udp]EPOLLERR or EPOLLHUP from udp_remote_fd events[idx].events=%x \n",events[idx].events);
-
-					}
-
-					char data[max_data_len_udp+200];
-					int data_len =recv(udp_fd,data,max_data_len_udp+1,0);
-					mylog(log_trace, "[udp]received data from udp fd %d, len=%d\n", udp_fd,data_len);
-
-					if(data_len==max_data_len_udp+1)
-					{
-						mylog(log_warn,"huge packet from {%s}, data_len > %d,dropped\n",udp_pair.addr_s,max_data_len_udp);
-						continue;
-					}
-
-					if(data_len<0)
-					{
-						mylog(log_warn,"[udp]recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
-						continue;
-					}
-
-					conn_manager_udp.lru.update(&udp_pair);
-					//udp_pair.last_active_time=get_current_time();
-
-					ret = sendto(local_listen_fd_udp, data,data_len,0, (struct sockaddr *)&udp_pair.adress.inner,udp_pair.adress.get_len());
-					if (ret < 0) {
-						mylog(log_warn, "[udp]sento returned %d,%s\n", ret,strerror(errno));
-						//perror("ret<0");
-					}
-				}
-			}
-			else
-			{
-				mylog(log_fatal,"got unexpected fd\n");
-				myexit(-1);
-			}
-		}
-	}
-
+	*/
 	myexit(0);
 	return 0;
 }
@@ -957,6 +1030,7 @@ int unit_test()
 
 	return 0;
 }
+
 int main(int argc, char *argv[])
 {
 	//unit_test();
@@ -972,4 +1046,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
