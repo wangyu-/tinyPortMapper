@@ -318,7 +318,7 @@ int new_listen_socket(int &fd,u32_t ip,int port)
 	local_me.sin_port = htons(port);
 	local_me.sin_addr.s_addr = ip;
 
-	if (bind(fd, (struct sockaddr*) &local_me, slen) == -1) {
+	if (::bind(fd, (struct sockaddr*) &local_me, slen) == -1) {
 		mylog(log_fatal,"socket bind error\n");
 		//perror("socket bind error");
 		myexit(1);

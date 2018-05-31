@@ -16,7 +16,7 @@ int disable_conn_clear=0;
 int max_pending_packet=0;
 int enable_udp=0,enable_tcp=0;
 
-const int listen_fd_buf_size=5*1024*1024;
+const int listen_fd_buf_size=2*1024*1024;
 address_t local_addr,remote_addr;
 
 int VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV;
@@ -797,7 +797,7 @@ int event_loop()
 
 	if(enable_tcp)
 	{
-		if (bind(local_listen_fd_tcp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) !=0)
+		if (::bind(local_listen_fd_tcp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) !=0)
 		{
 			mylog(log_fatal,"[tcp]socket bind failed, %s",strerror(errno));
 			myexit(1);
@@ -825,7 +825,7 @@ int event_loop()
 
 	if(enable_udp)
 	{
-		if (bind(local_listen_fd_udp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) == -1)
+		if (::bind(local_listen_fd_udp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) == -1)
 		{
 			mylog(log_fatal,"[udp]socket bind error");
 			myexit(1);
