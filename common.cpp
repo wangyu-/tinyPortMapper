@@ -152,6 +152,7 @@ u32_t get_true_random_number_nz() //nz for non-zero
 	}
 	return ret;
 }*/
+/*
 u64_t ntoh64(u64_t a)
 {
 	if(__BYTE_ORDER == __LITTLE_ENDIAN)
@@ -169,7 +170,7 @@ u64_t hton64(u64_t a)
 	}
 	else return a;
 
-}
+}*/
 
 void setnonblocking(int sock) {
 	int opts;
