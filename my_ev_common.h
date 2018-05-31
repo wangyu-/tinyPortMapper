@@ -6,6 +6,8 @@
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wunused-value"
 
+#pragma GCC diagnostic ignored "-Wc++17-compat-mangling"
+
 #pragma GCC diagnostic ignored "-Wall"
 #pragma GCC diagnostic ignored "-W"
 

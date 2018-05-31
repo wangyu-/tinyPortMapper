@@ -275,7 +275,7 @@ bool larger_than_u16(uint16_t a,uint16_t b);
 bool larger_than_u32(u32_t a,u32_t b);
 void setnonblocking(int sock);
 
-int set_buf_size(int fd,int socket_buf_size,int force_socket_buf=0);
+int set_buf_size(int fd,int socket_buf_size);
 
 void  signal_handler(int sig);
 
