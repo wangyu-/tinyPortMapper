@@ -345,7 +345,7 @@ void tcp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 		assert((other_info.ev.events & EV_WRITE)==0);
 
-		int send_len=send(other_fd,my_info.begin,my_info.data_len,MSG_NOSIGNAL);
+		int send_len=send(other_fd,my_info.begin,my_info.data_len,0);
 
 		if(send_len<=0)
 		{
@@ -392,7 +392,7 @@ void tcp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		}
 
 		assert(other_info.data_len!=0);
-		int send_len=send(my_fd,other_info.begin,other_info.data_len,MSG_NOSIGNAL);
+		int send_len=send(my_fd,other_info.begin,other_info.data_len,0);
 		if(send_len==0)
 		{
 			mylog(log_warn,"[tcp]send_len=%d,connection {%s} closed bc of send_len==0\n",send_len,tcp_pair.addr_s);
@@ -729,6 +729,24 @@ void udp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	}
 
 }
+void sigpipe_cb(struct ev_loop *l, ev_signal *w, int revents)
+{
+	mylog(log_info, "got sigpipe, ignored");
+}
+
+void sigterm_cb(struct ev_loop *l, ev_signal *w, int revents)
+{
+	mylog(log_info, "got sigterm, exit");
+	myexit(0);
+}
+
+void sigint_cb(struct ev_loop *l, ev_signal *w, int revents)
+{
+	mylog(log_info, "got sigint, exit");
+	myexit(0);
+}
+
+
 int event_loop()
 {
 
@@ -772,8 +790,8 @@ int event_loop()
 	//	myexit(-1);
 	//}
 
-	struct ev_loop * default_loop= ev_default_loop(0);
-	assert(default_loop != NULL);
+	struct ev_loop * loop= ev_default_loop(0);
+	assert(loop != NULL);
 
 	struct ev_io tcp_accept_watcher;
 
@@ -800,7 +818,7 @@ int event_loop()
 		//	myexit(-1);
 		//}
 	    ev_io_init(&tcp_accept_watcher, tcp_accept_cb, local_listen_fd_tcp, EV_READ);
-	    ev_io_start(default_loop, &tcp_accept_watcher);
+	    ev_io_start(loop, &tcp_accept_watcher);
 	}
 
 	struct ev_io udp_accept_watcher;
@@ -823,16 +841,16 @@ int event_loop()
 		//}
 
 	    ev_io_init(&udp_accept_watcher, udp_accept_cb, local_listen_fd_udp, EV_READ);
-	    ev_io_start(default_loop, &udp_accept_watcher);
+	    ev_io_start(loop, &udp_accept_watcher);
 	}
 
 	//int clear_timer_fd=-1;
 	struct ev_timer clear_timer;
 
 	ev_timer_init(&clear_timer, clear_timer_cb, 0, timer_interval/1000.0);
-	ev_timer_start(default_loop, &clear_timer);
+	ev_timer_start(loop, &clear_timer);
 
-	ev_run(default_loop, 0);
+	ev_run(loop, 0);
 	/*
 	set_timer(epollfd,clear_timer_fd);
 
@@ -1033,6 +1051,19 @@ int unit_test()
 
 int main(int argc, char *argv[])
 {
+	struct ev_loop* loop=ev_default_loop(0);
+    ev_signal signal_watcher_sigpipe;
+    ev_signal_init(&signal_watcher_sigpipe, sigpipe_cb, SIGPIPE);
+    ev_signal_start(loop, &signal_watcher_sigpipe);
+
+    ev_signal signal_watcher_sigterm;
+    ev_signal_init(&signal_watcher_sigterm, sigterm_cb, SIGTERM);
+    ev_signal_start(loop, &signal_watcher_sigterm);
+
+    ev_signal signal_watcher_sigint;
+    ev_signal_init(&signal_watcher_sigint, sigint_cb, SIGINT);
+    ev_signal_start(loop, &signal_watcher_sigint);
+
 	//unit_test();
 	assert(sizeof(u64_t)==8);
 	assert(sizeof(i64_t)==8);

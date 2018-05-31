@@ -228,11 +228,12 @@ void myexit(int a)
    // clear_iptables_rule();
 	exit(a);
 }
+/*
 void  signal_handler(int sig)
 {
 	about_to_exit=1;
     // myexit(0);
-}
+}*/
 
 /*
 void get_true_random_chars(char * s,int len)
