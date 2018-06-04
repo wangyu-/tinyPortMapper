@@ -7,9 +7,9 @@ cc_mips24kc_le=/toolchains/lede-sdk-17.01.2-ramips-mt7621_gcc-5.4.0_musl-1.1.16.
 cc_arm= /toolchains/arm-2014.05/bin/arm-none-linux-gnueabi-g++
 #cc_bcm2708=/home/wangyu/raspberry/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-g++ 
 
-FLAGS= -std=c++11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers -Wno-strict-aliasing -Wno-comment
+FLAGS= -std=c++11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers
 
-SOURCES=main.cpp log.cpp common.cpp fd_manager.cpp my_ev.cpp -Ilibev
+SOURCES=main.cpp log.cpp common.cpp fd_manager.cpp my_ev.cpp -isystem libev
 #SOURCES=new_main.cpp my_ev.cpp -Ilibev
 
 NAME=tinymapper

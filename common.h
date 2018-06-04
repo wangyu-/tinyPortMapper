@@ -266,9 +266,9 @@ char * my_ntoa(u32_t ip);
 
 void myexit(int a);
 void init_random_number_fd();
-u64_t get_true_random_number_64();
-u32_t get_true_random_number();
-u32_t get_true_random_number_nz();
+u64_t get_fake_random_number_64();
+u32_t get_fake_random_number();
+u32_t get_fake_random_number_nz();
 u64_t ntoh64(u64_t a);
 u64_t hton64(u64_t a);
 bool larger_than_u16(uint16_t a,uint16_t b);
@@ -279,7 +279,7 @@ int set_buf_size(int fd,int socket_buf_size);
 
 void  signal_handler(int sig);
 
-void get_true_random_chars(char * s,int len);
+void get_fake_random_chars(char * s,int len);
 int random_between(u32_t a,u32_t b);
 
 
