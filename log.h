@@ -5,24 +5,20 @@
 
 #include<stdio.h>
 #include<string.h>
-#include<sys/socket.h>
-#include<arpa/inet.h>
 #include<stdlib.h>
 #include<getopt.h>
 #include <unistd.h>
 #include<errno.h>
 
-#include <fcntl.h>
+//#include <fcntl.h>
 
-#include <sys/time.h>
+//#include <sys/time.h>
 #include <time.h>
 
-//#include <sys/timerfd.h>
 #include <set>
-//#include <encrypt.h>
-#include <inttypes.h>
+//#include <inttypes.h>
 
-#include <stdarg.h>
+//#include <stdarg.h>
 
 using namespace std;
 
