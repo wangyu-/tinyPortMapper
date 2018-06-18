@@ -21,7 +21,7 @@
 #include<errno.h>
 //#include <sys/epoll.h>
 //#include <sys/wait.h>
-#include <sys/socket.h>    //for socket ofcourse
+//#include <sys/socket.h>    //for socket ofcourse
 //#include <sys/types.h>
 //#include <sys/stat.h>
 #include <stdlib.h> //for exit(0);
@@ -33,21 +33,38 @@
 //#include <arpa/inet.h>
 #include <fcntl.h>
 //#include <byteswap.h>
-#include <arpa/inet.h>
 //#include <linux/if_ether.h>
 //#include <linux/filter.h>
 #include <sys/time.h>
 #include <time.h>
 //#include <sys/timerfd.h>
-#include <sys/ioctl.h>
+//#include <sys/ioctl.h>
 //#include <netinet/in.h>
 //#include <net/if.h>
 //#include <arpa/inet.h>
 #include <stdarg.h>
 #include <assert.h>
+
+
+#include <my_ev.h>
+
+#if defined(__MINGW32__)
+#include <winsock2.h>
+#include <Ws2tcpip.h >
+typedef unsigned char u_int8_t;
+typedef unsigned short u_int16_t;
+typedef unsigned int u_int32_t;
+typedef int socklen_t;
+#else
+#include <sys/socket.h>    //for socket ofcourse
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <arpa/inet.h>
+#endif
+
+
 //#include <linux/if_packet.h>
 //#include <linux/if_tun.h>
-#include <my_ev.h>
 
 #include<unordered_map>
 #include<unordered_set>
@@ -58,6 +75,15 @@
 #include <deque>
 //#include <pair>
 using  namespace std;
+
+#if defined(__MINGW32__)
+int inet_pton(int af, const char *src, void *dst);
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+#define setsockopt(a,b,c,d,e) setsockopt(a,b,c,(const char *)(d),e)
+#endif
+
+char *get_sock_error();
+int get_sock_errno();
 
 
 typedef unsigned long long u64_t;   //this works on most platform,avoid using the PRId64
@@ -97,6 +123,23 @@ extern int socket_buf_size;
 
 typedef u64_t fd64_t;
 
+
+
+#if defined(__MINGW32__)
+typedef SOCKET my_fd_t;
+inline int sock_close(my_fd_t fd)
+{
+	return closesocket(fd);
+}
+#else
+typedef int my_fd_t;
+inline int sock_close(my_fd_t fd)
+{
+	return close(fd);
+}
+
+#endif
+
 struct not_copy_able_t
 {
 	not_copy_able_t()
@@ -107,9 +150,10 @@ struct not_copy_able_t
 	{
 		assert(0==1);
 	}
-	not_copy_able_t & operator=(const not_copy_able_t &other)
+	const not_copy_able_t & operator=(const not_copy_able_t &other)
 	{
 		assert(0==1);
+		return other;
 	}
 };
 
@@ -146,6 +190,7 @@ struct tcp_info_t:not_copy_able_t
 
 u32_t djb2(unsigned char *str,int len);
 u32_t sdbm(unsigned char *str,int len);
+
 
 struct address_t  //TODO scope id
 {

@@ -333,7 +333,7 @@ void tcp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		}
 		if(recv_len<0)
 		{
-			mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of %s,fd=%d\n",recv_len,tcp_pair.addr_s,strerror(errno),my_fd);
+			mylog(log_info,"[tcp]recv_len=%d,connection {%s} closed bc of %s,fd=%d\n",recv_len,tcp_pair.addr_s,get_sock_error(),my_fd);
 			conn_manager_tcp.erase_closed(tcp_pair.it);
 			return;
 		}
@@ -401,7 +401,7 @@ void tcp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		}
 		if(send_len<0)
 		{
-			mylog(log_info,"[tcp]send_len=%d,connection {%s} closed bc of %s\n",send_len,tcp_pair.addr_s,strerror(errno));
+			mylog(log_info,"[tcp]send_len=%d,connection {%s} closed bc of %s\n",send_len,tcp_pair.addr_s,get_sock_error());
 			conn_manager_tcp.erase_closed(tcp_pair.it);
 			return;
 		}
@@ -469,7 +469,7 @@ void tcp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	int new_fd=accept(local_listen_fd_tcp, (struct sockaddr*) &tmp_sockaddr_in,&tmp_len);
 	if(new_fd<0)
 	{
-		mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,strerror(errno));
+		mylog(log_warn,"[tcp]accept failed %d %s\n", new_fd,get_sock_error());
 		//continue;
 		return ;
 	}
@@ -487,7 +487,7 @@ void tcp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	if(int(conn_manager_tcp.tcp_pair_list.size())>=max_conn_num)
 	{
 		mylog(log_warn,"[tcp]new connection from {%s},but ignored,bc of max_conn_num reached\n",ip_addr);
-		close(new_fd);
+		sock_close(new_fd);
 		return ;
 		//continue;
 	}
@@ -505,7 +505,7 @@ void tcp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	ret=connect(new_remote_fd,(struct sockaddr*) &remote_addr.inner,remote_addr.get_len());
 	if(ret!=0)
 	{
-		mylog(log_debug,"[tcp]connect returned %d,errno=%s\n",ret,strerror(errno));
+		mylog(log_debug,"[tcp]connect returned %d,errno=%s\n",ret,get_sock_error());
 	}
 	else
 	{
@@ -601,7 +601,7 @@ void udp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 	if(data_len<0)
 	{
-		mylog(log_warn,"[udp]recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,strerror(errno));
+		mylog(log_warn,"[udp]recv failed %d ,udp_fd%d,errno:%s\n", data_len,udp_fd,get_sock_error());
 		return;
 	}
 
@@ -610,7 +610,7 @@ void udp_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	int local_listen_fd_udp=udp_pair.local_listen_fd;
 	ret = sendto(local_listen_fd_udp, data,data_len,0, (struct sockaddr *)&udp_pair.adress.inner,udp_pair.adress.get_len());
 	if (ret < 0) {
-		mylog(log_warn, "[udp]sento returned %d,%s\n", ret,strerror(errno));
+		mylog(log_warn, "[udp]sento returned %d,%s\n", ret,get_sock_error());
 		//perror("ret<0");
 	}
 }
@@ -640,7 +640,7 @@ void udp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp+1, 0,
 			(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 	{
-		mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",strerror(errno));
+		mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",get_sock_error());
 		//myexit(1);
 		return;
 	}
@@ -725,7 +725,7 @@ void udp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	int ret;
 	ret = send(udp_fd, data,data_len, 0);
 	if (ret < 0) {
-		mylog(log_warn, "[udp]send returned %d,%s\n", ret,strerror(errno));
+		mylog(log_warn, "[udp]send returned %d,%s\n", ret,get_sock_error() );
 	}
 
 }
@@ -799,13 +799,13 @@ int event_loop()
 	{
 		if (::bind(local_listen_fd_tcp, (struct sockaddr*) &local_addr.inner, local_addr.get_len()) !=0)
 		{
-			mylog(log_fatal,"[tcp]socket bind failed, %s",strerror(errno));
+			mylog(log_fatal,"[tcp]socket bind failed, %s",get_sock_error());
 			myexit(1);
 		}
 
 	    if (listen (local_listen_fd_tcp, 512) !=0) //512 is max pending tcp connection,its large enough
 	    {
-			mylog(log_fatal,"[tcp]socket listen failed error, %s",strerror(errno));
+			mylog(log_fatal,"[tcp]socket listen failed error, %s",get_sock_error());
 			myexit(1);
 	    }
 
@@ -1051,10 +1051,57 @@ int unit_test()
 
 int main(int argc, char *argv[])
 {
-	struct ev_loop* loop=ev_default_loop(0);
+#if defined(__MINGW32__)
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+
+	/* Use the MAKEWORD(lowbyte, highbyte) macro declared in Windef.h */
+	wVersionRequested = MAKEWORD(2, 2);
+
+	err = WSAStartup(wVersionRequested, &wsaData);
+	if (err != 0) {
+		/* Tell the user that we could not find a usable */
+		/* Winsock DLL.                                  */
+		printf("WSAStartup failed with error: %d\n", err);
+		return 1;
+	}
+
+	/* Confirm that the WinSock DLL supports 2.2.*/
+	/* Note that if the DLL supports versions greater    */
+	/* than 2.2 in addition to 2.2, it will still return */
+	/* 2.2 in wVersion since that is the version we      */
+	/* requested.                                        */
+
+	if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
+		/* Tell the user that we could not find a usable */
+		/* WinSock DLL.                                  */
+		printf("Could not find a usable version of Winsock.dll\n");
+		WSACleanup();
+		return 1;
+	}
+	else
+	{
+		printf("The Winsock 2.2 dll was found okay");
+	}
+	
+	int tmp[]={0,100,200,300,500,800,1000,2000,3000,4000,-1};
+	int succ=0;
+	for(int i=1;tmp[i]!=-1;i++)
+	{
+		if(_setmaxstdio(100)==-1) break;
+		else succ=i;
+	}	
+	printf(", _setmaxstdio() was set to %d\n",tmp[succ]);
+#endif
+
+    struct ev_loop* loop=ev_default_loop(0);
+#if !defined(__MINGW32__)
     ev_signal signal_watcher_sigpipe;
     ev_signal_init(&signal_watcher_sigpipe, sigpipe_cb, SIGPIPE);
     ev_signal_start(loop, &signal_watcher_sigpipe);
+#endif
+
 
     ev_signal signal_watcher_sigterm;
     ev_signal_init(&signal_watcher_sigterm, sigterm_cb, SIGTERM);

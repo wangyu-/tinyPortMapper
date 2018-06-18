@@ -33,7 +33,8 @@ void fd_manager_t::fd64_close(fd64_t fd64)
 	{
 		fd_info_mp.erase(fd64);
 	}
-	assert(close(fd)==0);
+	sock_close(fd);
+//	assert(close(fd)==0);
 }
 void fd_manager_t::reserve(int n)
 {

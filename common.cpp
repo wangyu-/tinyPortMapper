@@ -15,6 +15,85 @@ int about_to_exit=0;
 
 int socket_buf_size=1024*1024;
 
+#if defined(__MINGW32__)
+int inet_pton(int af, const char *src, void *dst)
+{
+  struct sockaddr_storage ss;
+  int size = sizeof(ss);
+  char src_copy[INET6_ADDRSTRLEN+1];
+
+  ZeroMemory(&ss, sizeof(ss));
+  /* stupid non-const API */
+  strncpy (src_copy, src, INET6_ADDRSTRLEN+1);
+  src_copy[INET6_ADDRSTRLEN] = 0;
+
+  if (WSAStringToAddress(src_copy, af, NULL, (struct sockaddr *)&ss, &size) == 0) {
+    switch(af) {
+      case AF_INET:
+    *(struct in_addr *)dst = ((struct sockaddr_in *)&ss)->sin_addr;
+    return 1;
+      case AF_INET6:
+    *(struct in6_addr *)dst = ((struct sockaddr_in6 *)&ss)->sin6_addr;
+    return 1;
+    }
+  }
+  return 0;
+}
+
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size)
+{
+  struct sockaddr_storage ss;
+  unsigned long s = size;
+
+  ZeroMemory(&ss, sizeof(ss));
+  ss.ss_family = af;
+
+  switch(af) {
+    case AF_INET:
+      ((struct sockaddr_in *)&ss)->sin_addr = *(struct in_addr *)src;
+      break;
+    case AF_INET6:
+      ((struct sockaddr_in6 *)&ss)->sin6_addr = *(struct in6_addr *)src;
+      break;
+    default:
+      return NULL;
+  }
+  /* cannot direclty use &size because of strict aliasing rules */
+  return (WSAAddressToString((struct sockaddr *)&ss, sizeof(ss), NULL, dst, &s) == 0)?
+          dst : NULL;
+}
+char *get_sock_error()
+{
+	static char buf[1000];
+	int e=WSAGetLastError();
+	wchar_t *s = NULL;
+	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
+			NULL, e,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPWSTR)&s, 0, NULL);
+	sprintf(buf, "%d:%S", e,s);
+	int len=strlen(buf);
+	if(len>0&&buf[len-1]=='\n') buf[len-1]=0; 
+	LocalFree(s);
+	return buf;
+}
+int get_sock_errno()
+{
+	return WSAGetLastError();
+}
+#else
+char *get_sock_error()
+{
+	static char buf[1000];
+	sprintf(buf, "%d:%s", errno,strerror(errno));
+	return buf;
+}
+int get_sock_errno()
+{
+	return errno;
+}
+#endif
+
 
 /*
 struct random_fd_t
@@ -173,6 +252,7 @@ u64_t hton64(u64_t a)
 }*/
 
 void setnonblocking(int sock) {
+#if !defined(__MINGW32__)
 	int opts;
 	opts = fcntl(sock, F_GETFL);
 
@@ -187,19 +267,26 @@ void setnonblocking(int sock) {
 		//perror("fcntl(sock,SETFL,opts)");
 		myexit(1);
 	}
+#else
+	int iResult;
+	u_long iMode = 1;
+	iResult = ioctlsocket(sock, FIONBIO, &iMode);
+	if (iResult != NO_ERROR)
+		printf("ioctlsocket failed with error: %d\n", iResult);
 
+#endif
 }
 
 int set_buf_size(int fd,int socket_buf_size)
 {
 	if(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &socket_buf_size, sizeof(socket_buf_size))<0)
 	{
-		mylog(log_fatal,"SO_SNDBUF fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,strerror(errno));
+		mylog(log_fatal,"SO_SNDBUF fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,get_sock_error());
 		myexit(1);
 	}
 	if(setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &socket_buf_size, sizeof(socket_buf_size))<0)
 	{
-		mylog(log_fatal,"SO_RCVBUF fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,strerror(errno));
+		mylog(log_fatal,"SO_RCVBUF fail  socket_buf_size=%d  errno=%s\n",socket_buf_size,get_sock_error());
 		myexit(1);
 	}
 	return 0;
@@ -247,7 +334,7 @@ int round_up_div(int a,int b)
 {
 	return (a+b-1)/b;
 }
-
+/*
 int create_fifo(char * file)
 {
 	if(mkfifo (file, 0666)!=0)
@@ -283,7 +370,7 @@ int create_fifo(char * file)
 
 	setnonblocking(fifo_fd);
 	return fifo_fd;
-}
+}*/
 
 
 int new_listen_socket(int &fd,u32_t ip,int port)
@@ -504,8 +591,8 @@ int address_t::new_connected_udp_fd()
 	mylog(log_debug, "created new udp_fd %d\n", new_udp_fd);
 	int ret = connect(new_udp_fd, (struct sockaddr *) &inner, get_len());
 	if (ret != 0) {
-		mylog(log_warn, "udp fd connect fail %d %s\n",ret,strerror(errno));
-		close(new_udp_fd);
+		mylog(log_warn, "udp fd connect fail %d %s\n",ret,get_sock_error() );
+		sock_close(new_udp_fd);
 		return -1;
 	}
 
