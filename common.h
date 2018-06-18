@@ -188,6 +188,8 @@ struct tcp_info_t:not_copy_able_t
 	}*/
 };
 
+int init_ws();
+
 u32_t djb2(unsigned char *str,int len);
 u32_t sdbm(unsigned char *str,int len);
 
