@@ -887,6 +887,7 @@ void print_help()
 	printf("                                          4: info (default)      5: debug   6: trace\n");
 	printf("    --log-position                        enable file name, function name, line number in log\n");
 	printf("    --disable-color                       disable log color\n");
+	printf("    --enable-color                        enable log color, log color is enabled by default on most platforms\n");
 	printf("    -h,--help                             print this help message\n");
 	printf("\n");
 
@@ -902,6 +903,7 @@ void process_arg(int argc, char *argv[])
 		{"log-level", required_argument,    0, 1},
 		{"log-position", no_argument,    0, 1},
 		{"disable-color", no_argument,    0, 1},
+		{"enable-color", no_argument,    0, 1},
 		{"sock-buf", required_argument,    0, 1},
 		{NULL, 0, 0, 0}
       };
@@ -939,6 +941,10 @@ void process_arg(int argc, char *argv[])
 		if(strcmp(argv[i],"--disable-color")==0)
 		{
 			enable_log_color=0;
+		}
+		if(strcmp(argv[i],"--enable-color")==0)
+		{
+			enable_log_color=1;
 		}
 	}
 
@@ -984,6 +990,10 @@ void process_arg(int argc, char *argv[])
 			{
 			}
 			else if(strcmp(long_options[option_index].name,"disable-color")==0)
+			{
+				//enable_log_color=0;
+			}
+			else if(strcmp(long_options[option_index].name,"enable-color")==0)
 			{
 				//enable_log_color=0;
 			}
@@ -1057,6 +1067,8 @@ int main(int argc, char *argv[])
     ev_signal signal_watcher_sigpipe;
     ev_signal_init(&signal_watcher_sigpipe, sigpipe_cb, SIGPIPE);
     ev_signal_start(loop, &signal_watcher_sigpipe);
+#else
+    enable_log_color=0;
 #endif
 
 
