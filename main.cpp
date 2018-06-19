@@ -640,7 +640,7 @@ void udp_accept_cb(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	if ((data_len = recvfrom(local_listen_fd_udp, data, max_data_len_udp+1, 0,
 			(struct sockaddr *) &tmp_sockaddr_in, &tmp_len)) == -1) //<--first packet from a new ip:port turple
 	{
-		mylog(log_error,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",get_sock_error());
+		mylog(log_debug,"[udp]recv_from error,errno %s,this shouldnt happen,but lets try to pretend it didnt happen",get_sock_error());
 		//myexit(1);
 		return;
 	}
