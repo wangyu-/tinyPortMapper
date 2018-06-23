@@ -21,6 +21,10 @@ all:git_version
 	rm -f ${NAME}
 	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS} -lrt -ggdb -static -O2
 
+freebsd:git_version
+	rm -f ${NAME}
+	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS} -lrt -ggdb -static -O2
+
 mingw:git_version
 	rm -f ${NAME}
 	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS}  -ggdb -static -O2 -lws2_32
