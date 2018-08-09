@@ -63,6 +63,7 @@ typedef int socklen_t;
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #endif
 
 
@@ -108,8 +109,8 @@ const int max_addr_len=100;
 const int max_data_len_udp=65536;
 const int max_data_len_tcp=4096*4;
 
-const u32_t conn_timeout_udp=60000;
-const u32_t conn_timeout_tcp=60000;
+const u32_t conn_timeout_udp=180000;
+const u32_t conn_timeout_tcp=360000;
 
 const int max_conn_num=20000;
 
