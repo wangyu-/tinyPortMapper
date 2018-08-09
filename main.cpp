@@ -1069,6 +1069,8 @@ int main(int argc, char *argv[])
     ev_signal_start(loop, &signal_watcher_sigpipe);
 #else
     enable_log_color=0;
+    printf("supported_backends()=%x\n",ev_supported_backends());
+    fflush(0);
 #endif
 
 

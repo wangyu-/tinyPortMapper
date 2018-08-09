@@ -45,8 +45,11 @@
 #include <stdarg.h>
 #include <assert.h>
 
-
+#if !defined(NO_LIBEV_EMBED)
 #include <my_ev.h>
+#else
+#include "ev.h"
+#endif
 
 #if defined(__MINGW32__)
 #include <winsock2.h>

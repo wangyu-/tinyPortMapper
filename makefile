@@ -25,6 +25,10 @@ mingw:git_version
 	rm -f ${NAME}
 	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS}  -ggdb -static -O2 -lws2_32
 
+mingw_wepoll:git_version    #to compile you need a pacthed version of libev with wepoll backend
+	rm -f ${NAME}
+	${cc_local}   -o ${NAME}          -I. main.cpp log.cpp common.cpp fd_manager.cpp ${FLAGS}  -ggdb -static -O2   -DNO_LIBEV_EMBED -D_WIN32 -lev -lws2_32 
+
 mac:git_version
 	rm -f ${NAME}
 	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS}  -ggdb -O2
