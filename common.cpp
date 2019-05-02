@@ -164,6 +164,7 @@ struct random_fd_t
 	}
 }random_fd;*/
 
+/*
 u64_t get_current_time()//ms
 {
 	//timespec tmp_time;
@@ -179,6 +180,35 @@ u64_t get_current_time_us()
 	//return (uint64_t(tmp_time.tv_sec))*1000llu*1000llu+ (uint64_t(tmp_time.tv_nsec))/1000llu;
 	return (u64_t)(ev_time()*1000*1000);
 }
+*/
+
+u64_t get_current_time_us()
+{
+        static u64_t value_fix=0;
+        static u64_t largest_value=0;
+
+        u64_t raw_value=(u64_t)(ev_time()*1000*1000);
+
+        u64_t fixed_value=raw_value+value_fix;
+
+        if(fixed_value< largest_value)
+        {
+                value_fix+= largest_value- fixed_value;
+        }
+        else
+        {
+                largest_value=fixed_value;
+        }
+
+        //printf("<%lld,%lld,%lld>\n",raw_value,value_fix,raw_value + value_fix);
+        return raw_value + value_fix; //new fixed value
+}
+
+u64_t get_current_time()
+{
+        return get_current_time_us()/1000lu;
+}
+
 
 u64_t pack_u64(u32_t a,u32_t b)
 {
