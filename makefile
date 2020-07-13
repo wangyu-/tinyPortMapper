@@ -103,7 +103,7 @@ release: ${TARGETS}
 
 clean:	
 	rm -f ${TAR}
-	rm -f ${NAME} ${NAME}_cross ${NAME}.exe ${NAME}_wepoll.exe
+	rm -f ${NAME} ${NAME}_cross ${NAME}.exe ${NAME}_wepoll.exe ${NAME}_mac
 	rm -f git_version.h
 
 git_version:
