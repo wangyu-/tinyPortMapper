@@ -7,7 +7,7 @@ cc_mingw_cross=i686-w64-mingw32-g++-posix
 cc_mac_cross=o64-clang++ -stdlib=libc++ -std=c++11
 #cc_bcm2708=/home/wangyu/raspberry/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-g++ 
 
-FLAGS= -std=c++11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers
+FLAGS= -std=c++11   -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers ${OPT}
 
 SOURCES0=main.cpp log.cpp common.cpp fd_manager.cpp
 SOURCES=${SOURCES0} my_ev.cpp -isystem libev
