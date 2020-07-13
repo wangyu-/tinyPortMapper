@@ -5,7 +5,8 @@ cc_mips24kc_be=/toolchains/lede-sdk-17.01.2-ar71xx-generic_gcc-5.4.0_musl-1.1.16
 cc_mips24kc_le=/toolchains/lede-sdk-17.01.2-ramips-mt7621_gcc-5.4.0_musl-1.1.16.Linux-x86_64/staging_dir/toolchain-mipsel_24kc_gcc-5.4.0_musl-1.1.16/bin/mipsel-openwrt-linux-musl-g++
 #cc_arm= /toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabi/bin/arm-linux-gnueabi-g++ -march=armv6 -marm 
 cc_arm= /toolchains/arm-2014.05/bin/arm-none-linux-gnueabi-g++
-cc_mingw_cross=x86_64-w64-mingw32-g++-posix
+#cc_mingw_cross=x86_64-w64-mingw32-g++-posix
+cc_mingw_cross=i686-w64-mingw32-g++-posix
 #cc_bcm2708=/home/wangyu/raspberry/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian/bin/arm-linux-gnueabihf-g++ 
 
 FLAGS= -std=c++11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-missing-field-initializers
@@ -71,7 +72,7 @@ mingw_cross:git_version   #to build this and the below one you need 'mingw-w64' 
 	rm -f ${NAME}
 	${cc_mingw_cross}   -o ${NAME}.exe          -I. ${SOURCES} ${FLAGS}  -ggdb -static -O2 -lws2_32
 
-mingw_cross_wepoll:git_version    #to compile you need a pacthed version of libev with wepoll backend
+mingw_cross_wepoll:git_version    #to compile you need a pacthed version of libev with wepoll backend installed
 	rm -f ${NAME}
 	${cc_mingw_cross}   -o ${NAME}_wepoll.exe       -I. main.cpp log.cpp common.cpp fd_manager.cpp ${FLAGS}  -ggdb -static -O2   -DNO_LIBEV_EMBED -D_WIN32 -lev -lws2_32
 
@@ -98,7 +99,7 @@ release: ${TARGETS}
 
 clean:	
 	rm -f ${TAR}
-	rm -f tinymapper tinymapper_cross
+	rm -f ${NAME} ${NAME}_cross ${NAME}.exe ${NAME}_wepoll.exe
 	rm -f git_version.h
 
 git_version:
