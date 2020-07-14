@@ -64,22 +64,6 @@ debug2: git_version
 	rm -f ${NAME}
 	${cc_local}   -o ${NAME}          -I. ${SOURCES} ${FLAGS} -lrt -Wformat-nonliteral -ggdb
 
-#targets only for cross compile windows targets on linux 
-
-mingw_cross:git_version   #to build this and the below one you need 'mingw-w64' installed (the cross compile version on linux)
-	rm -f ${NAME}
-	${cc_mingw_cross}   -o ${NAME}.exe          -I. ${SOURCES} ${FLAGS}  -ggdb -static -O2 -lws2_32
-
-mingw_cross_wepoll:git_version    #to compile you need a pacthed version of libev with wepoll backend installed
-	rm -f ${NAME}
-	${cc_mingw_cross}   -o ${NAME}_wepoll.exe       -I. ${SOURCES0} ${FLAGS}  -ggdb -static -O2   -DNO_LIBEV_EMBED -D_WIN32 -lev -lws2_32
-
-#targets only for cross compile macos targets on linux 
-
-mac_cross:git_version   #need to install 'osxcross' first.
-	rm -f ${NAME}
-	${cc_mac_cross}   -o ${NAME}_mac          -I. ${SOURCES} ${FLAGS}  -ggdb -O2
-
 #targets only for 'make release'
 
 mips24kc_be: git_version
@@ -100,6 +84,28 @@ arm:git_version
 release: ${TARGETS}
 	cp git_version.h version.txt
 	tar -zcvf ${TAR}
+
+#targets for cross compile windows targets on linux 
+
+mingw_cross:git_version   #to build this and the below one you need 'mingw-w64' installed (the cross compile version on linux)
+	rm -f ${NAME}
+	${cc_mingw_cross}   -o ${NAME}.exe          -I. ${SOURCES} ${FLAGS}  -ggdb -static -O2 -lws2_32
+
+mingw_cross_wepoll:git_version    #to compile you need a pacthed version of libev with wepoll backend installed
+	rm -f ${NAME}
+	${cc_mingw_cross}   -o ${NAME}_wepoll.exe       -I. ${SOURCES0} ${FLAGS}  -ggdb -static -O2   -DNO_LIBEV_EMBED -D_WIN32 -lev -lws2_32
+
+#targets for cross compile macos targets on linux 
+
+mac_cross:git_version   #need to install 'osxcross' first.
+	rm -f ${NAME}
+	${cc_mac_cross}   -o ${NAME}_mac          -I. ${SOURCES} ${FLAGS}  -ggdb -O2
+
+#release2 includes all binary in 'release' plus win and mac cross compile targets
+
+release2: ${TARGETS} mingw_cross mingw_cross_wepoll mac_cross
+	cp git_version.h version.txt
+	tar -zcvf ${TAR} ${NAME}.exe ${NAME}_wepoll.exe ${NAME}_mac
 
 clean:	
 	rm -f ${TAR}
