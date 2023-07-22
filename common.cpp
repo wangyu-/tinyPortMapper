@@ -677,30 +677,25 @@ int address_t::new_connected_udp_fd()
 	return new_udp_fd;
 }
 
-u32_t djb2(unsigned char *str,int len)
-{
-	 u32_t hash = 5381;
-     int c;
-     int i=0;
-    while(c = *str++,i++!=len)
-    {
-         hash = ((hash << 5) + hash)^c; /* (hash * 33) ^ c */
+u32_t djb2(unsigned char *str, int len) {
+    u32_t hash = 5381;
+    int c;
+    for (int i=0; i<len ;i++) {
+        c = *(str++);
+        hash = ((hash << 5) + hash) ^ c; /* (hash * 33) ^ c */
     }
 
-     hash=htonl(hash);
-     return hash;
- }
+    hash = htonl(hash);
+    return hash;
+}
 
-u32_t sdbm(unsigned char *str,int len)
-{
-     u32_t hash = 0;
-     int c;
-     int i=0;
-	while(c = *str++,i++!=len)
-	{
-		 hash = c + (hash << 6) + (hash << 16) - hash;
-	}
-     //hash=htonl(hash);
-     return hash;
- }
-
+u32_t sdbm(unsigned char *str, int len) {
+    u32_t hash = 0;
+    int c;
+    for (int i=0; i<len ;i++) {
+        c = *(str++);
+        hash = c + (hash << 6) + (hash << 16) - hash;
+    }
+    // hash=htonl(hash);
+    return hash;
+}
